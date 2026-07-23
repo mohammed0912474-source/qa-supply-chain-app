@@ -1,0 +1,1699 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>QA Supply Chain</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B2A4A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="QA Supply Chain">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --navy:#0B2A4A; --navy2:#123A5E; --navy3:#0E355C;
+  --accent:#2E7BD6; --accent-dark:#1E5FA8;
+  --bg:#EEF2F7; --card:#FFFFFF; --text:#152232; --muted:#66768C;
+  --danger:#D64545; --danger-dark:#B93636; --success:#1E8E5A; --warn:#C9891E;
+  --border:#DCE3EC; --radius:12px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:"Segoe UI", Tahoma, Geneva, Arial, sans-serif;
+  padding-bottom:76px; -webkit-tap-highlight-color:transparent;
+}
+[dir="rtl"] body{font-family:"Segoe UI", Tahoma, Arial, sans-serif;}
+button{font-family:inherit; cursor:pointer;}
+input,select,textarea{font-family:inherit; font-size:15px;}
+
+/* Header */
+.app-header{
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%);
+  color:#fff; padding:14px 16px; position:sticky; top:0; z-index:40;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  box-shadow:0 2px 10px rgba(0,0,0,.15);
+}
+.app-header .brand{display:flex; align-items:center; gap:10px; min-width:0;}
+.app-header .brand .logo{
+  width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;font-size:20px; flex-shrink:0;
+}
+.app-header .brand .titles{min-width:0;}
+.app-header .brand h1{font-size:15px; margin:0; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.app-header .brand .sub{font-size:11px; opacity:.75; margin-top:1px;}
+.header-actions{display:flex; align-items:center; gap:6px; flex-shrink:0;}
+.icon-btn{
+  background:rgba(255,255,255,.12); border:none; color:#fff; border-radius:9px;
+  width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+  font-size:16px; position:relative;
+}
+.status-pill{
+  font-size:10px; padding:3px 8px; border-radius:20px; display:flex; align-items:center; gap:4px;
+  background:rgba(255,255,255,.1);
+}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--success);}
+.status-pill.offline .status-dot{background:var(--danger);}
+
+/* Nav */
+.tabbar{
+  position:fixed; bottom:0; inset-inline-start:0; inset-inline-end:0; z-index:40;
+  background:#fff; border-top:1px solid var(--border);
+  display:flex; overflow-x:auto; padding:6px 4px; gap:2px;
+  box-shadow:0 -2px 10px rgba(0,0,0,.06);
+}
+.tab-btn{
+  flex:1 0 auto; min-width:64px; background:none; border:none; display:flex; flex-direction:column;
+  align-items:center; gap:2px; padding:6px 8px; border-radius:10px; color:var(--muted); font-size:10.5px;
+}
+.tab-btn .ico{font-size:19px;}
+.tab-btn.active{color:var(--accent-dark); background:#EAF2FC; font-weight:700;}
+
+/* Layout */
+.container{max-width:820px; margin:0 auto; padding:14px;}
+.card{background:var(--card); border-radius:var(--radius); padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(20,40,70,.06); border:1px solid var(--border);}
+.card h2{margin:0 0 4px; font-size:17px; color:var(--navy);}
+.card .desc{font-size:12.5px; color:var(--muted); margin-bottom:10px;}
+.section-title{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;}
+.section-title h2{margin:0;}
+
+/* dashboard */
+.stats-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;}
+.stat-card{background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:14px; text-align:center;}
+.stat-card .num{font-size:24px; font-weight:800; color:var(--navy);}
+.stat-card .lbl{font-size:12px; color:var(--muted); margin-top:2px;}
+.stat-card .ico{font-size:22px; margin-bottom:4px;}
+
+.kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px;}
+.kpi-card{background:#fff; border:1px solid var(--border); border-inline-start:5px solid var(--navy); border-radius:var(--radius); padding:12px 14px;}
+.kpi-card.good{border-inline-start-color:var(--success);}
+.kpi-card.warn{border-inline-start-color:var(--warn);}
+.kpi-card.bad{border-inline-start-color:var(--danger);}
+.kpi-card .kpi-val{font-size:21px; font-weight:800; color:var(--navy);}
+.kpi-card .kpi-lbl{font-size:11.5px; color:var(--muted); margin-top:3px; line-height:1.4;}
+.period-toggle{display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; align-items:center;}
+.period-toggle button.active{background:var(--accent); color:#fff;}
+.chart-card{margin-top:6px;}
+.chart-card h3{font-size:13.5px; color:var(--navy2); margin:0 0 10px;}
+
+/* Buttons */
+.btn{border:none; border-radius:9px; padding:10px 16px; font-size:14px; font-weight:700; display:inline-flex; align-items:center; gap:6px;}
+.btn-primary{background:var(--accent); color:#fff;}
+.btn-primary:active{background:var(--accent-dark);}
+.btn-outline{background:#fff; color:var(--accent-dark); border:1.5px solid var(--accent);}
+.btn-danger{background:#FCEAEA; color:var(--danger-dark); border:1.5px solid #F3C6C6;}
+.btn-success{background:#E7F5EE; color:var(--success); border:1.5px solid #BEE3D0;}
+.btn-sm{padding:6px 10px; font-size:12.5px; border-radius:7px;}
+.btn-block{width:100%; justify-content:center;}
+.btn:disabled{opacity:.5;}
+
+/* Forms */
+.form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+@media (max-width:560px){.form-grid{grid-template-columns:1fr;}}
+.field{margin-bottom:2px;}
+.field label{display:block; font-size:12.5px; font-weight:700; color:var(--navy2); margin-bottom:4px;}
+.field .req{color:var(--danger);}
+.field input[type=text], .field input[type=number], .field input[type=date], .field input[type=tel], .field input[type=password],
+.field select, .field textarea{
+  width:100%; padding:9px 10px; border:1.5px solid var(--border); border-radius:8px; background:#FBFCFE; color:var(--text);
+}
+.field textarea{min-height:60px; resize:vertical;}
+.field input:focus, .field select:focus, .field textarea:focus{outline:none; border-color:var(--accent);}
+.field-full{grid-column:1 / -1;}
+.hint{font-size:11px; color:var(--muted); margin-top:3px;}
+
+/* Groups (repeatable) */
+.group-block{grid-column:1/-1; border:1.5px dashed var(--border); border-radius:10px; padding:10px; margin:6px 0; background:#FAFBFD;}
+.group-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+.group-header b{font-size:13px; color:var(--navy);}
+.group-item{background:#fff; border:1px solid var(--border); border-radius:9px; padding:10px; margin-bottom:8px; position:relative;}
+.group-item .grid-mini{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+@media (max-width:480px){.group-item .grid-mini{grid-template-columns:1fr;}}
+.group-item .rm-row{display:flex; justify-content:flex-end; margin-top:6px;}
+.chip{display:inline-block; background:#EAF2FC; color:var(--accent-dark); font-size:11px; font-weight:700; border-radius:6px; padding:2px 7px; margin-inline-end:6px;}
+
+/* multiDate rows */
+.md-row{display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap;}
+.md-row input{flex:1; min-width:120px;}
+
+/* images */
+.img-grid{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;}
+.img-thumb{position:relative; width:74px; height:74px; border-radius:8px; overflow:hidden; border:1px solid var(--border); background:#f2f2f2;}
+.img-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+.img-thumb .rm{position:absolute; top:2px; inset-inline-end:2px; background:rgba(214,69,69,.9); color:#fff; border:none; border-radius:50%; width:18px; height:18px; font-size:11px; line-height:1;}
+.file-btn{display:inline-flex; align-items:center; gap:6px; background:#EAF2FC; color:var(--accent-dark); border:1.5px dashed var(--accent); border-radius:9px; padding:9px 12px; font-size:13px; font-weight:700; cursor:pointer;}
+.file-btn input{display:none;}
+
+/* computed display */
+.computed-box{background:#EAF2FC; border:1.5px solid var(--accent); border-radius:8px; padding:10px 12px; font-weight:800; color:var(--navy); font-size:16px;}
+
+/* List / table */
+.toolbar{display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center;}
+.toolbar input[type=text],.toolbar input[type=date]{padding:8px 10px; border:1.5px solid var(--border); border-radius:8px; font-size:13px;}
+.record-card{background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:9px;}
+.record-card .top{display:flex; justify-content:space-between; gap:8px; align-items:flex-start;}
+.record-card .main{font-size:13.5px; font-weight:700; color:var(--navy);}
+.record-card .meta{font-size:12px; color:var(--muted); margin-top:2px; line-height:1.5;}
+.record-card .actions{display:flex; gap:6px; flex-shrink:0;}
+.empty-state{text-align:center; padding:36px 16px; color:var(--muted);}
+.empty-state .ico{font-size:36px; margin-bottom:8px;}
+
+/* Modal */
+.modal-overlay{position:fixed; inset:0; background:rgba(10,20,35,.55); z-index:100; display:flex; align-items:flex-end; justify-content:center;}
+.modal-box{background:#fff; width:100%; max-width:480px; border-radius:16px 16px 0 0; padding:18px; max-height:88vh; overflow:auto;}
+@media (min-width:600px){.modal-overlay{align-items:center;} .modal-box{border-radius:16px;}}
+.modal-box h3{margin:0 0 12px; color:var(--navy);}
+
+/* toast */
+.toast{position:fixed; bottom:86px; left:50%; transform:translateX(-50%); background:var(--navy); color:#fff; padding:10px 18px; border-radius:24px; font-size:13px; z-index:200; box-shadow:0 4px 14px rgba(0,0,0,.25); max-width:90vw; text-align:center;}
+
+/* summary table */
+.summary-table{width:100%; border-collapse:collapse; font-size:13px;}
+.summary-table th,.summary-table td{padding:8px; border-bottom:1px solid var(--border); text-align:start;}
+.summary-table th{color:var(--muted); font-weight:700; font-size:11.5px;}
+
+.field-row-builder{display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:6px; align-items:center; margin-bottom:8px;}
+@media (max-width:600px){.field-row-builder{grid-template-columns:1fr 1fr;}}
+.field-row-builder select,.field-row-builder input{padding:7px 8px; border:1.5px solid var(--border); border-radius:7px; font-size:12.5px;}
+
+/* auth screens */
+.auth-screen{min-height:70vh; display:flex; align-items:center; justify-content:center; padding:20px 14px;}
+.auth-box{width:100%; max-width:420px;}
+.auth-logo{width:64px; height:64px; border-radius:16px; background:linear-gradient(135deg,var(--navy),var(--navy3)); color:#fff; display:flex; align-items:center; justify-content:center; font-size:32px; margin:0 auto 14px;}
+.auth-title{text-align:center; font-size:19px; font-weight:800; color:var(--navy); margin-bottom:4px;}
+.auth-sub{text-align:center; font-size:13px; color:var(--muted); margin-bottom:18px;}
+.user-chip{display:flex; align-items:center; justify-content:space-between; width:100%; background:#fff; border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; text-align:start;}
+.user-chip:active{background:#EAF2FC;}
+.user-chip .nm{font-weight:700; color:var(--navy); font-size:14px;}
+.user-chip .rl{font-size:11.5px; color:var(--muted);}
+.auth-divider{display:flex; align-items:center; gap:10px; margin:14px 0; color:var(--muted); font-size:11.5px;}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.link-btn{background:none; border:none; color:var(--accent-dark); font-size:13px; font-weight:700; text-decoration:underline;}
+
+.lang-en [data-ar-only]{display:none;}
+.lang-ar [data-en-only]{display:none;}
+::-webkit-scrollbar{height:6px;width:6px;}
+::-webkit-scrollbar-thumb{background:#c7d1de;border-radius:4px;}
+
+/* PWA update banner */
+.update-banner{position:fixed; top:0; inset-inline:0; z-index:500; background:var(--warn); color:#fff; padding:10px 14px; font-size:13px; display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,.25);}
+.update-banner button{background:#fff; color:var(--navy); border:none; border-radius:8px; padding:6px 12px; font-weight:800; font-size:12.5px;}
+</style>
+</head>
+<body class="lang-ar">
+<div id="app"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+/* إعدادات الاتصال بقاعدة بيانات Firebase الخاصة بمنظومة الجودة - سلسلة الإمداد */
+const firebaseConfig = {
+  apiKey: "AIzaSyA6F8XLqQmqTm62zSvnie9pKHaUcnl042A",
+  authDomain: "qa-supply-chain.firebaseapp.com",
+  projectId: "qa-supply-chain",
+  storageBucket: "qa-supply-chain.firebasestorage.app",
+  messagingSenderId: "554385909317",
+  appId: "1:554385909317:web:eb98cadb4ae9701ebae52c"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+try{
+  db.enablePersistence({synchronizeTabs:true}).catch(err=>{
+    console.warn('Firestore offline persistence not enabled:', err.code);
+  });
+}catch(e){ console.warn('Firestore persistence setup failed', e); }
+</script>
+
+<script>
+/* ===================== State & Storage ===================== */
+let LANG = localStorage.getItem('qa_lang') || 'ar';
+const DEFAULT_MASTER_CODE = 'DAL-QA-2026'; // <-- الكود الافتراضي لأول دخول لأفراد الفريق. يمكن للمسؤول تغييره من "إدارة الأقسام > لوحة التحكم الإدارية"، لكن لازم يبلّغ الفريق بالكود الجديد ويُعاد توزيع نفس الملف عليهم لأن التطبيق يعمل بدون سيرفر مركزي.
+const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, search:'', dateFrom:'', dateTo:'', builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null };
+
+const Store = {
+  get(key, def){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }catch(e){ return def; } },
+  set(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); return true; }catch(e){ console.error('storage error',e); return false; } }
+};
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function t(o){ if(o==null) return ''; if(typeof o==='string') return o; return o[LANG] || o.ar || o.en || ''; }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function pct(part,total){ const p=parseFloat(part)||0; const tt=parseFloat(total)||0; if(tt<=0) return null; return p/tt*100; }
+
+/* ===================== IndexedDB (images) ===================== */
+let _dbPromise=null;
+function openDB(){
+  if(_dbPromise) return _dbPromise;
+  _dbPromise = new Promise((resolve,reject)=>{
+    const req = indexedDB.open('qaSystemDB', 1);
+    req.onupgradeneeded = e=>{ const db=e.target.result; if(!db.objectStoreNames.contains('images')) db.createObjectStore('images',{keyPath:'id'}); };
+    req.onsuccess = e=>resolve(e.target.result);
+    req.onerror = e=>reject(e);
+  });
+  return _dbPromise;
+}
+async function saveImage(id, dataUrl){ const db = await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction('images','readwrite'); tx.objectStore('images').put({id,dataUrl}); tx.oncomplete=()=>res(true); tx.onerror=e=>rej(e); }); }
+async function getImage(id){ try{ const db = await openDB(); return new Promise((res)=>{ const tx=db.transaction('images','readonly'); const r=tx.objectStore('images').get(id); r.onsuccess=()=>res(r.result?r.result.dataUrl:null); r.onerror=()=>res(null); }); }catch(e){ return null; } }
+async function deleteImageFromDB(id){ try{ const db = await openDB(); const tx=db.transaction('images','readwrite'); tx.objectStore('images').delete(id); }catch(e){} }
+
+/* ===================== Security helpers (password hashing + biometric) ===================== */
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function biometricAvailable(){
+  try{
+    if(!window.PublicKeyCredential || !PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  }catch(e){ return false; }
+}
+async function registerBiometric(userLabel){
+  try{
+    const available = await biometricAvailable();
+    if(!available) return null;
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userIdBytes = crypto.getRandomValues(new Uint8Array(16));
+    const cred = await navigator.credentials.create({
+      publicKey:{
+        challenge, rp:{name:'QA Supply Chain'},
+        user:{ id:userIdBytes, name:userLabel||'user', displayName:userLabel||'user' },
+        pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+        authenticatorSelection:{authenticatorAttachment:'platform', userVerification:'required'},
+        timeout:60000
+      }
+    });
+    if(!cred) return null;
+    return btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+  }catch(e){ console.warn('biometric register failed', e); return null; }
+}
+async function verifyBiometric(credIdB64){
+  try{
+    const rawId = Uint8Array.from(atob(credIdB64), c=>c.charCodeAt(0));
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const assertion = await navigator.credentials.get({
+      publicKey:{ challenge, allowCredentials:[{id:rawId, type:'public-key', transports:['internal']}], userVerification:'required', timeout:60000 }
+    });
+    return !!assertion;
+  }catch(e){ console.warn('biometric verify failed', e); return false; }
+}
+
+/* ===================== UI strings ===================== */
+const STR = {
+  appName:{ar:'منظومة الجودة - سلسلة الإمداد', en:'QA Supply Chain'},
+  home:{ar:'الرئيسية', en:'Home'},
+  dashboard:{ar:'التحليلات', en:'Dashboard'},
+  containers:{ar:'فحص الحاويات', en:'Container Inspection'},
+  trucks:{ar:'فحص الشاحنات', en:'Truck Inspection'},
+  monthly:{ar:'التقرير الشهري', en:'Monthly Report'},
+  builder:{ar:'إدارة الأقسام', en:'Manage Sections'},
+  add:{ar:'إضافة', en:'Add'},
+  save:{ar:'حفظ', en:'Save'},
+  cancel:{ar:'إلغاء', en:'Cancel'},
+  edit:{ar:'تعديل', en:'Edit'},
+  delete:{ar:'حذف', en:'Delete'},
+  search:{ar:'بحث...', en:'Search...'},
+  from:{ar:'من', en:'From'},
+  to:{ar:'إلى', en:'To'},
+  exportCsv:{ar:'تصدير CSV', en:'Export CSV'},
+  exportXlsx:{ar:'تصدير Excel', en:'Export Excel'},
+  exportAll:{ar:'تصدير الكل (مجمع)', en:'Export All (Combined)'},
+  noRecords:{ar:'لا توجد سجلات بعد', en:'No records yet'},
+  confirmDelete:{ar:'هل تريد حذف هذا السجل؟', en:'Delete this record?'},
+  accessLog:{ar:'الحساب والدخول', en:'Account & Access'},
+  name:{ar:'الاسم', en:'Name'},
+  role:{ar:'الوظيفة/الدور', en:'Role'},
+  continue:{ar:'متابعة', en:'Continue'},
+  newSection:{ar:'إضافة قسم جديد', en:'Add New Section'},
+  sectionNameAr:{ar:'اسم القسم (عربي)', en:'Section Name (Arabic)'},
+  sectionNameEn:{ar:'اسم القسم (إنجليزي)', en:'Section Name (English)'},
+  icon:{ar:'الأيقونة (إيموجي)', en:'Icon (emoji)'},
+  fields:{ar:'الحقول', en:'Fields'},
+  addField:{ar:'+ إضافة حقل', en:'+ Add Field'},
+  fieldLabelAr:{ar:'تسمية (عربي)', en:'Label (Arabic)'},
+  fieldLabelEn:{ar:'تسمية (إنجليزي)', en:'Label (English)'},
+  optionsCsv:{ar:'خيارات (افصل بفاصلة)', en:'Options (comma separated)'},
+  saveSection:{ar:'حفظ القسم', en:'Save Section'},
+  deleteSectionConfirm:{ar:'حذف هذا القسم وكل سجلاته؟', en:'Delete this section and all its records?'},
+  month:{ar:'الشهر', en:'Month'},
+  year:{ar:'السنة', en:'Year'},
+  summary:{ar:'ملخص', en:'Summary'},
+  recordsCount:{ar:'عدد السجلات', en:'Records'},
+  requiredMissing:{ar:'برجاء تعبئة الحقول المطلوبة', en:'Please fill required fields'},
+  savedOk:{ar:'تم الحفظ بنجاح ✅', en:'Saved successfully ✅'},
+  deletedOk:{ar:'تم الحذف', en:'Deleted'},
+  online:{ar:'متصل', en:'Online'},
+  offline:{ar:'غير متصل', en:'Offline'},
+  builtin:{ar:'قسم أساسي', en:'Built-in'},
+  addPhotos:{ar:'إضافة صور', en:'Add Photos'},
+  xlsxOfflineFallback:{ar:'تعذر الاتصال لتحميل مُصدِّر الإكسل، تم التصدير كملف CSV بدلاً من ذلك.', en:'Could not reach the Excel exporter, exported as CSV instead.'},
+
+  /* auth */
+  welcomeTitle:{ar:'أهلاً بك 👋', en:'Welcome 👋'},
+  welcomeSub:{ar:'اختر حسابك أو سجّل دخول لأول مرة', en:'Choose your account or sign in for the first time'},
+  whoAreYou:{ar:'من أنت؟', en:'Who are you?'},
+  newUserBtn:{ar:'➕ مستخدم جديد (لدي كود دخول)', en:'➕ New user (I have an access code)'},
+  adminEntry:{ar:'دخول المسؤول الرئيسي', en:'Main admin sign-in'},
+  accessCodeTitle:{ar:'كود الدخول', en:'Access Code'},
+  accessCodeSub:{ar:'أدخل كود الدخول اللي استلمته من المسؤول الرئيسي (م. محمد) عشان تقدر تسجّل حسابك', en:'Enter the access code you received from the main admin to register your account'},
+  accessCodeLabel:{ar:'كود الدخول', en:'Access code'},
+  accessCodeWrong:{ar:'الكود غير صحيح، تأكد منه مع المسؤول', en:'Incorrect code, please check with the admin'},
+  registerTitle:{ar:'إنشاء حسابك', en:'Create your account'},
+  registerSub:{ar:'بعد الحفظ، هتدخل بعدها بكلمة السر أو بصمة الجهاز فقط', en:'After saving, you will sign in afterwards with just your password or device fingerprint'},
+  choosePassword:{ar:'كلمة السر (٤ أرقام/أحرف على الأقل)', en:'Password (at least 4 characters)'},
+  confirmPassword:{ar:'تأكيد كلمة السر', en:'Confirm password'},
+  passwordMismatch:{ar:'كلمتا السر غير متطابقتين', en:'Passwords do not match'},
+  passwordTooShort:{ar:'كلمة السر قصيرة جداً', en:'Password is too short'},
+  enableBiometric:{ar:'🔒 تفعيل الدخول ببصمة الجهاز', en:'🔒 Enable device fingerprint sign-in'},
+  biometricEnabled:{ar:'✅ تم تفعيل البصمة لهذا الجهاز', en:'✅ Fingerprint enabled on this device'},
+  biometricNotAvailable:{ar:'البصمة غير مدعومة على هذا الجهاز', en:'Fingerprint is not supported on this device'},
+  createAccount:{ar:'إنشاء الحساب والدخول', en:'Create account & sign in'},
+  adminSetupTitle:{ar:'إعداد حساب المسؤول', en:'Set up admin account'},
+  adminSetupSub:{ar:'أول مرة تفتح فيها التطبيق كمسؤول رئيسي، حدد كلمة سر لحسابك', en:'First time opening as main admin — set a password for your account'},
+  adminPasswordLabel:{ar:'كلمة سر المسؤول (٦ أرقام/أحرف على الأقل)', en:'Admin password (at least 6 characters)'},
+  saveAndEnter:{ar:'حفظ ودخول', en:'Save & sign in'},
+  adminLoginTitle:{ar:'دخول المسؤول الرئيسي', en:'Main admin sign-in'},
+  wrongPassword:{ar:'كلمة السر غير صحيحة', en:'Incorrect password'},
+  lockWelcomeBack:{ar:'مرحباً بعودتك', en:'Welcome back'},
+  enterPassword:{ar:'كلمة السر', en:'Password'},
+  unlockBtn:{ar:'دخول', en:'Sign in'},
+  unlockBiometricBtn:{ar:'🔓 دخول بالبصمة', en:'🔓 Sign in with fingerprint'},
+  switchAccount:{ar:'مستخدم آخر', en:'Switch account'},
+  logout:{ar:'تسجيل الخروج', en:'Log out'},
+  loggedInAs:{ar:'مسجّل دخول باسم', en:'Signed in as'},
+  adminPanelTitle:{ar:'لوحة التحكم الإدارية', en:'Admin Control Panel'},
+  masterCodeLabel:{ar:'كود الدخول الحالي لأفراد الفريق', en:'Current team access code'},
+  masterCodeHint:{ar:'شارك هذا الكود مع أفراد فريقك ليسجّلوا حساباتهم أول مرة فقط. تغييره يفعّل على هذا الجهاز فقط؛ لو غيّرته لازم توزّع نفس نسخة الملف على الجميع.', en:'Share this code with your team for first-time registration only. Changing it applies to this device only; redistribute the same file if changed.'},
+  saveCode:{ar:'حفظ الكود', en:'Save code'},
+  registeredUsers:{ar:'المستخدمون المسجّلون على هذا الجهاز', en:'Users registered on this device'},
+  noUsers:{ar:'لا يوجد مستخدمون بعد', en:'No users yet'},
+  revokeUser:{ar:'إلغاء الحساب', en:'Revoke'},
+  revokeConfirm:{ar:'إلغاء حساب هذا المستخدم؟ هيحتاج كود دخول جديد للتسجيل تاني', en:'Revoke this user? They will need a new access code to register again'},
+  you:{ar:'أنت', en:'You'},
+  roleAdmin:{ar:'مسؤول رئيسي', en:'Main Admin'},
+  adminOnlyNotice:{ar:'إضافة أو تعديل الأقسام متاحة للمسؤول الرئيسي فقط. حسابك مخصص للتعبئة اليومية.', en:'Adding or editing sections is available to the main admin only. Your account is for daily data entry.'},
+  adminLoginCount:{ar:'عدد مرات دخول المسؤول الرئيسي', en:'Main admin sign-in count'}
+};
+
+const ROLE_OPTIONS = [
+  {v:'مسؤول جودة', l:{ar:'مسؤول جودة', en:'QA Officer'}},
+  {v:'مشرف', l:{ar:'مشرف', en:'Supervisor'}},
+  {v:'مدير', l:{ar:'مدير', en:'Manager'}},
+  {v:'أخرى', l:{ar:'أخرى', en:'Other'}}
+];
+
+/* ===================== Field helpers ===================== */
+const UNIT_OPTIONS = ['كجم/KG','طن/Ton','لتر/Liter','كرتونة/Carton','بالة/Pallet','قطعة/Piece','شكارة/Bag','صندوق/Box'];
+const SEL = (val, labelAr, labelEn) => ({value:val, label:{ar:labelAr, en:labelEn}});
+
+/* ===================== Built-in Section Schemas ===================== */
+const BUILTIN_SECTIONS = [
+  { id:'containers', builtin:true, icon:'📦', name:{ar:'فحص الحاويات', en:'Container Inspection'},
+    listFields:['date','blNumber','productDesc','operationType'],
+    fields:[
+      {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
+      {key:'blNumber', type:'text', label:{ar:'رقم البوليصة', en:'BL Number'}, required:true},
+      {key:'transportMethod', type:'select', label:{ar:'طريقة النقل', en:'Transport Method'},
+        options:[SEL('air','عبر المطار','By Air'), SEL('sea','عبر الحاويات (بحري)','By Sea/Container'), SEL('road','عبر الطريق','By Road')]},
+      {key:'transportComment', type:'text', label:{ar:'تعليق على طريقة النقل (إن وجد)', en:'Transport comment (if any)'}},
+      {key:'containerCount', type:'number', label:{ar:'عدد الحاويات', en:'Number of Containers'}},
+      {key:'billQty', type:'number', label:{ar:'الكمية الكاملة بالبوليصة', en:'Total Quantity per Bill'}},
+      {key:'factory', type:'text', label:{ar:'المصنع', en:'Factory'}},
+      {key:'countryOfOrigin', type:'text', label:{ar:'بلد المنشأ', en:'Country of Origin'}},
+      {key:'productDesc', type:'text', label:{ar:'المنتج ووصفه', en:'Product & Description'}, required:true},
+      {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
+      {key:'prodExpDates', type:'multiDate', label:{ar:'تواريخ الإنتاج والانتهاء', en:'Production & Expiry Dates'}},
+      {key:'batchNumber', type:'text', label:{ar:'رقم الباتش (افصل بفاصلة إن تعدد)', en:'Batch No. (comma separated if multiple)'}},
+      {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'},
+        options:[SEL('cross','Cross Loading','Cross Loading'), SEL('off','Off Loading','Off Loading')]},
+      {key:'containerDetails', type:'group', label:{ar:'تفاصيل الحاويات', en:'Container Details'},
+        fields:[
+          {key:'containerNo', type:'text', label:{ar:'رقم الحاوية', en:'Container No.'}},
+          {key:'sealNo', type:'text', label:{ar:'رقم الختم', en:'Seal No.'}},
+          {key:'condition', type:'select', label:{ar:'حالة الحاوية', en:'Condition'}, options:[SEL('good','سليمة','Good'),SEL('damaged','تالفة','Damaged'),SEL('repair','تحتاج صيانة','Needs Repair')]},
+          {key:'qty', type:'number', label:{ar:'الكمية', en:'Qty'}},
+          {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
+          {key:'nc', type:'number', label:{ar:'عدد NC بالحاوية', en:'NC in this Container'}},
+          {key:'notes', type:'textarea', label:{ar:'ملاحظات', en:'Notes'}}
+        ]},
+      {key:'productDetails', type:'group', label:{ar:'تفاصيل المنتج', en:'Product Details'},
+        fields:[
+          {key:'product', type:'text', label:{ar:'المنتج', en:'Product'}},
+          {key:'batch', type:'text', label:{ar:'الباتش', en:'Batch'}},
+          {key:'qty', type:'number', label:{ar:'الكمية', en:'Qty'}},
+          {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
+          {key:'prodDate', type:'date', label:{ar:'تاريخ الإنتاج', en:'Prod. Date'}},
+          {key:'expDate', type:'date', label:{ar:'تاريخ الانتهاء', en:'Exp. Date'}},
+          {key:'notes', type:'textarea', label:{ar:'ملاحظات', en:'Notes'}},
+          {key:'productView', type:'image', label:{ar:'صورة المنتج (Product View)', en:'Product View'}},
+          {key:'issuePhoto', type:'image', label:{ar:'توثيق مشكلة المنتج (إن وُجدت)', en:'Product Issue Documentation (if any)'}}
+        ]},
+      {key:'totalNC', type:'number', label:{ar:'إجمالي Total NC', en:'Total NC'}},
+      {key:'ncReason', type:'textarea', label:{ar:'سبب/توضيح الـ NC', en:'NC Reason'}},
+      {key:'ncTreated', type:'number', label:{ar:'الكمية المعاد توجيهها (Readressed)', en:'Readressed'}},
+      {key:'totalLoss', type:'number', label:{ar:'إجمالي الفاقد (Total Loss)', en:'Total Loss'}},
+      {key:'ncTreatedPercent', type:'computed', label:{ar:'نسبة المعالجة للـ NC (Readressed %)', en:'NC Resolved Rate (Readressed %)'},
+        compute:(r)=> pct(r.ncTreated, r.totalNC)},
+      {key:'lossPercentOfBillQty', type:'computed', label:{ar:'نسبة الفاقد (Loss) في البوليصة بعد المعالجة', en:'Loss % of Bill Quantity (after treatment)'},
+        compute:(r)=> pct(r.totalLoss, r.billQty)},
+      {key:'totalReback', type:'number', label:{ar:'Total Reback', en:'Total Reback'}},
+      {key:'note', type:'textarea', label:{ar:'NOTE - ملاحظات عامة', en:'NOTE - General'}},
+      {key:'images', type:'image', label:{ar:'صور البوليصة', en:'Bill Images'}}
+    ]
+  },
+  { id:'trucks', builtin:true, icon:'🚚', name:{ar:'فحص الشاحنات', en:'Truck Inspection'},
+    listFields:['date','truckNo','destination','inspectionResult'],
+    fields:[
+      {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
+      {key:'location', type:'text', label:{ar:'الموقع', en:'Location'}},
+      {key:'truckNo', type:'text', label:{ar:'رقم الشاحنة', en:'Truck No'}, required:true},
+      {key:'destination', type:'text', label:{ar:'الوجهة', en:'Destination'}},
+      {key:'transporter', type:'text', label:{ar:'الناقل', en:'Transporter'}},
+      {key:'driverName', type:'text', label:{ar:'اسم السائق', en:'Driver Name'}},
+      {key:'driverPhone', type:'text', label:{ar:'هاتف السائق', en:'Driver Phone'}},
+      {key:'products', type:'group', label:{ar:'المنتجات المحمّلة (أضف بند لكل منتج)', en:'Products Loaded (add an item per product)'},
+        fields:[
+          {key:'product', type:'text', label:{ar:'المنتج', en:'Product'}},
+          {key:'qty', type:'number', label:{ar:'الكمية', en:'Qty'}},
+          {key:'unit', type:'unit', label:{ar:'الوحدة (اكتبها يدوياً لو مختلفة)', en:'Unit (type manually if different)'}}
+        ]},
+      {key:'orderType', type:'select', label:{ar:'نوع الطلب', en:'Order Type'},
+        options:[SEL('sales','مبيعات','Sales'), SEL('replenishment','تغذية مخزون','Replenishment'), SEL('consignment','بضاعة أمانة','Consignment'), SEL('cash','عميل نقدي','Cash Customer'), SEL('staffsales','منفذ بيع الموظفين','Staff Sales Point'), SEL('other','أخرى','Other')]},
+      {key:'orderTypeComment', type:'text', label:{ar:'تعليق على نوع الطلب (اختياري)', en:'Order type comment (optional)'}},
+      {key:'cleaning', type:'select', label:{ar:'النظافة', en:'Cleaning'}, options:[SEL('good','جيدة','Good'),SEL('bad','غير جيدة','Not Good')]},
+      {key:'tarpFloor', type:'select', label:{ar:'مشمع سطح الشاحنة', en:'Truck Floor Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
+      {key:'tarpCover', type:'select', label:{ar:'مشمع غطاء الشاحنة', en:'Truck Cover Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
+      {key:'inspectionResult', type:'select', label:{ar:'نتيجة الفحص', en:'Inspection Result'}, options:[SEL('accepted','مقبولة','Accepted'),SEL('rejected','مرفوضة','Rejected')]},
+      {key:'remark', type:'textarea', label:{ar:'ملاحظات', en:'Remark'}},
+      {key:'images', type:'image', label:{ar:'صور', en:'Images'}}
+    ]
+  }
+];
+
+/* ===================== Firestore-backed shared data (cross-device sync) ===================== */
+/* أي بيانات مشتركة بين كل الأفراد (السجلات، المستخدمين، الأقسام المخصصة، كود الدخول) بتتخزن هنا
+   وبتتحدث تلقائيًا لحظيًا لكل جهاز فاتح التطبيق، عن طريق Firestore. */
+const CUSTOM_SECTIONS_CACHE = { list: [] };
+const RECORDS_CACHE = {};        // { sectionId: [records...] }
+const USERS_CACHE = { list: [] };
+const META_CACHE = { masterCode: null, adminPasswordHash: null, adminBiometricCredId: null };
+const ACCESS_LOG_CACHE = { list: [] };
+const _subscribedSections = new Set();
+
+function qaCol(path){ return db.collection('qa_app').doc(path.split('/')[0]).collection(path.split('/')[1] || 'items'); }
+
+function subscribeMeta(){
+  db.collection('qa_app').doc('meta').onSnapshot(snap=>{
+    const d = snap.data() || {};
+    META_CACHE.masterCode = d.masterCode || null;
+    META_CACHE.adminPasswordHash = d.adminPasswordHash || null;
+    META_CACHE.adminBiometricCredId = d.adminBiometricCredId || null;
+    if(state.auth) render();
+    else if(state.view==='builder') render();
+  }, err=> console.warn('meta sync error', err));
+}
+function subscribeUsers(){
+  qaCol('users/items').onSnapshot(snap=>{
+    const arr = []; snap.forEach(doc=> arr.push({id:doc.id, ...doc.data()}));
+    USERS_CACHE.list = arr;
+    render();
+  }, err=> console.warn('users sync error', err));
+}
+function subscribeAccessLog(){
+  qaCol('accessLog/items').orderBy('time','desc').limit(500).onSnapshot(snap=>{
+    const arr = []; snap.forEach(doc=> arr.push({id:doc.id, ...doc.data()}));
+    ACCESS_LOG_CACHE.list = arr;
+    if(state.view==='builder') render();
+  }, err=> console.warn('accessLog sync error', err));
+}
+function subscribeCustomSections(){
+  qaCol('customSections/items').onSnapshot(snap=>{
+    const arr = []; snap.forEach(doc=> arr.push(doc.data()));
+    CUSTOM_SECTIONS_CACHE.list = arr;
+    arr.forEach(s=> subscribeSection(s.id));
+    render();
+  }, err=> console.warn('customSections sync error', err));
+}
+function subscribeSection(sectionId){
+  if(_subscribedSections.has(sectionId)) return;
+  _subscribedSections.add(sectionId);
+  RECORDS_CACHE[sectionId] = RECORDS_CACHE[sectionId] || [];
+  qaCol('records_'+sectionId+'/items').onSnapshot(snap=>{
+    const arr = []; snap.forEach(doc=> arr.push(doc.data()));
+    RECORDS_CACHE[sectionId] = arr;
+    if(!state.auth && state.view!=='form') render();
+  }, err=> console.warn('records sync error', sectionId, err));
+}
+function subscribeAllCoreData(){
+  subscribeMeta();
+  subscribeUsers();
+  subscribeAccessLog();
+  subscribeCustomSections();
+  BUILTIN_SECTIONS.forEach(s=> subscribeSection(s.id));
+}
+
+function getCustomSections(){ return CUSTOM_SECTIONS_CACHE.list; }
+function saveCustomSection(section){ return qaCol('customSections/items').doc(section.id).set(section); }
+function deleteCustomSectionRemote(sectionId){
+  qaCol('customSections/items').doc(sectionId).delete();
+  qaCol('records_'+sectionId+'/items').get().then(snap=> snap.forEach(doc=> doc.ref.delete()));
+}
+function getAllSections(){ return [...BUILTIN_SECTIONS, ...getCustomSections()]; }
+function getSection(id){ return getAllSections().find(s=>s.id===id); }
+
+/* ===================== Records storage ===================== */
+function getRecords(sectionId){ return RECORDS_CACHE[sectionId] || []; }
+function saveRecordRemote(sectionId, record){ return qaCol('records_'+sectionId+'/items').doc(record.id).set(record); }
+function deleteRecordRemote(sectionId, id){ return qaCol('records_'+sectionId+'/items').doc(id).delete(); }
+
+/* ===================== Path get/set ===================== */
+function getPath(obj, path){ return path.split('.').reduce((o,p)=> (o==null?undefined:o[p]), obj); }
+function setPath(obj, path, value){
+  const parts = path.split('.'); let cur = obj;
+  for(let i=0;i<parts.length-1;i++){ const p = parts[i]; if(cur[p]===undefined || cur[p]===null) cur[p] = /^\d+$/.test(parts[i+1]) ? [] : {}; cur = cur[p]; }
+  cur[parts[parts.length-1]] = value;
+}
+
+/* ===================== Default record builder ===================== */
+function emptyValueFor(field){
+  if(field.type==='group') return [];
+  if(field.type==='multiDate') return [];
+  if(field.type==='image') return [];
+  return '';
+}
+function newRecord(section){
+  const r = { id: uid(), _created: new Date().toISOString() };
+  section.fields.forEach(f=>{ if(f.type!=='computed') r[f.key] = emptyValueFor(f); });
+  return r;
+}
+
+/* ===================== Auth / User accounts ===================== */
+function getUsers(){ return USERS_CACHE.list; }
+function saveUserRemote(user){ return qaCol('users/items').doc(user.id).set(user); }
+function deleteUserRemote(userId){ return qaCol('users/items').doc(userId).delete(); }
+function isAdminSetup(){ return !!META_CACHE.adminPasswordHash; }
+function getMasterCode(){ return META_CACHE.masterCode || DEFAULT_MASTER_CODE; }
+function saveMetaRemote(partial){ return db.collection('qa_app').doc('meta').set(partial, {merge:true}); }
+function getCurrentUser(){
+  const id = Store.get('qa_currentUserId', null);
+  if(id==='__admin__') return {id:'__admin__', name: t(STR.roleAdmin), role:t(STR.roleAdmin), isAdmin:true, biometricCredId: META_CACHE.adminBiometricCredId};
+  if(!id) return null;
+  return getUsers().find(u=>u.id===id) || null;
+}
+function isAdmin(){ const u = getCurrentUser(); return !!(u && u.isAdmin); }
+function adminLoginCount(){ return ACCESS_LOG_CACHE.list.filter(e=> e.type==='admin-login' || e.type==='admin-setup').length; }
+function pushAccessLog(entry){ qaCol('accessLog/items').doc(uid()).set(entry).catch(err=>console.warn('log error',err)); }
+
+function initAuthState(){
+  const cur = getCurrentUser();
+  if(!cur){ state.auth = {screen:'welcome'}; return; }
+  const unlocked = sessionStorage.getItem('qa_unlocked')==='1';
+  state.auth = unlocked ? null : {screen:'lock', targetUserId: cur.id};
+}
+
+/* ===================== Rendering ===================== */
+const app = document.getElementById('app');
+
+function render(){
+  document.body.className = 'lang-'+LANG;
+  document.documentElement.dir = LANG==='ar' ? 'rtl':'ltr';
+  document.documentElement.lang = LANG;
+
+  if(state.auth){ app.innerHTML = renderAuthGate(); return; }
+
+  let html = renderHeader() + '<div class="container">';
+  if(state.view==='home') html += renderHome();
+  else if(state.view==='dashboard') html += renderDashboard();
+  else if(state.view==='list') html += renderList(state.viewSectionId);
+  else if(state.view==='form') html += renderForm(state.viewSectionId);
+  else if(state.view==='monthly') html += renderMonthly();
+  else if(state.view==='builder') html += renderBuilder();
+  html += '</div>' + renderTabbar();
+  app.innerHTML = html;
+  hydrateAllImages();
+}
+
+function renderHeader(){
+  const online = navigator.onLine;
+  const user = getCurrentUser();
+  return `
+  <div class="app-header">
+    <div class="brand">
+      <div class="logo">🛡️</div>
+      <div class="titles">
+        <h1>${esc(t(STR.appName))}</h1>
+        <div class="sub">${user?esc(user.name):'QA Supply Chain'}</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="status-pill ${online?'':'offline'}"><span class="status-dot"></span>${online?esc(t(STR.online)):esc(t(STR.offline))}</span>
+      <button class="icon-btn" data-action="open-account-modal" title="${esc(t(STR.accessLog))}">🔑</button>
+      <button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button>
+    </div>
+  </div>`;
+}
+
+function renderTabbar(){
+  const items = [
+    {id:'home', view:'home', icon:'🏠', label:STR.home},
+    {id:'dashboard', view:'dashboard', icon:'📊', label:STR.dashboard},
+    ...getAllSections().map(s=>({id:s.id, view:'list', sectionId:s.id, icon:s.icon, label:s.name})),
+    {id:'monthly', view:'monthly', icon:'🗓️', label:STR.monthly},
+    ...(isAdmin() ? [{id:'builder', view:'builder', icon:'⚙️', label:STR.builder}] : [])
+  ];
+  return `<div class="tabbar">${items.map(it=>{
+    const active = (state.view===it.view && (it.view!=='list' || state.viewSectionId===it.sectionId)) || (state.view==='form' && it.view==='list' && state.viewSectionId===it.sectionId);
+    return `<button class="tab-btn ${active?'active':''}" data-action="nav" data-view="${it.view}" data-section="${it.sectionId||''}">
+      <span class="ico">${it.icon}</span><span>${esc(t(it.label))}</span>
+    </button>`;
+  }).join('')}</div>`;
+}
+
+function renderHome(){
+  const sections = getAllSections();
+  const user = getCurrentUser();
+  const quickButtons = sections.map(s=>`<button class="btn btn-primary btn-block" style="margin-bottom:8px;justify-content:flex-start;font-size:15px;padding:14px 16px;" data-action="new-record" data-section="${s.id}">${s.icon} + ${esc(t(s.name))}</button>`).join('');
+  const stats = sections.map(s=>`<div class="stat-card"><div class="ico">${s.icon}</div><div class="num">${getRecords(s.id).length}</div><div class="lbl">${esc(t(s.name))}</div></div>`).join('');
+  return `
+  <div class="card">
+    <h2>${LANG==='ar'?'أهلاً'+(user?', '+esc(user.name):'')+' 👋':'Welcome'+(user?', '+esc(user.name):'')+' 👋'}</h2>
+    <div class="desc">${LANG==='ar'?'ابدأ تسجيل سريع':'Quick start a new entry'}</div>
+    ${quickButtons}
+  </div>
+  <div class="card">
+    <h2>${LANG==='ar'?'نظرة سريعة':'Quick Overview'}</h2>
+    <div class="stats-grid">${stats}</div>
+  </div>`;
+}
+
+/* ---- Dashboard / Analytics ---- */
+function computeContainerAgg(records){
+  let totalNC=0, totalTreated=0, totalBillQty=0, totalLoss=0, totalReback=0;
+  const conditionTally={};
+  records.forEach(r=>{
+    totalNC += parseFloat(r.totalNC)||0;
+    totalTreated += parseFloat(r.ncTreated)||0;
+    totalBillQty += parseFloat(r.billQty)||0;
+    totalLoss += parseFloat(r.totalLoss)||0;
+    totalReback += parseFloat(r.totalReback)||0;
+    (r.containerDetails||[]).forEach(cd=>{ if(cd.condition) conditionTally[cd.condition]=(conditionTally[cd.condition]||0)+1; });
+  });
+  return {totalNC,totalTreated,totalBillQty,totalLoss,totalReback,conditionTally,count:records.length};
+}
+function computeTruckAgg(records){
+  const total = records.length;
+  const accepted = records.filter(r=>r.inspectionResult==='accepted').length;
+  const rejected = records.filter(r=>r.inspectionResult==='rejected').length;
+  return {total, accepted, rejected};
+}
+function lastMonths(n){
+  const arr=[]; const now = new Date();
+  for(let i=n-1;i>=0;i--){ const d=new Date(now.getFullYear(), now.getMonth()-i, 1); arr.push({year:d.getFullYear(), month:d.getMonth()+1, key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}); }
+  return arr;
+}
+function ncTrendData(){
+  const months = lastMonths(6);
+  const allContainers = getRecords('containers');
+  return months.map(m=>{
+    const recs = allContainers.filter(r=>r.date && r.date.startsWith(m.key));
+    const nc = recs.reduce((a,r)=>a+(parseFloat(r.totalNC)||0),0);
+    return {label:`${m.month}/${String(m.year).slice(2)}`, value:Math.round(nc*100)/100};
+  });
+}
+function renderBarChart(items, color){
+  const max = Math.max(1, ...items.map(i=>i.value));
+  const bars = items.map(i=>{
+    const h = Math.max(2, Math.round((i.value/max)*100));
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
+      <div style="font-size:11px;font-weight:700;color:var(--navy2);margin-bottom:4px;">${i.value}</div>
+      <div style="width:70%;background:${color};border-radius:6px 6px 0 0;height:${h}px;max-height:110px;transition:height .3s;"></div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;text-align:center;">${esc(i.label)}</div>
+    </div>`;
+  }).join('');
+  return `<div style="display:flex;align-items:flex-end;height:150px;gap:6px;padding:6px 2px 0;">${bars}</div>`;
+}
+function renderDonut(parts){
+  const total = parts.reduce((a,p)=>a+p.value,0);
+  let acc=0;
+  const stops = total>0 ? parts.map(p=>{
+    const start = acc/total*100; acc+=p.value; const end=acc/total*100;
+    return `${p.color} ${start}% ${end}%`;
+  }).join(', ') : '#E3E9F1 0% 100%';
+  const legend = parts.map(p=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:5px;"><span style="width:10px;height:10px;border-radius:3px;background:${p.color};display:inline-block;flex-shrink:0;"></span>${esc(p.label)}: <b>${p.value}</b>${total?` (${Math.round(p.value/total*100)}%)`:''}</div>`).join('');
+  return `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div style="width:96px;height:96px;border-radius:50%;background:conic-gradient(${stops});flex-shrink:0;position:relative;">
+      <div style="position:absolute;inset:17px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--navy);">${total}</div>
+    </div>
+    <div>${legend}</div>
+  </div>`;
+}
+function renderDashboard(){
+  const period = state.dashboardPeriod;
+  let containers = getRecords('containers');
+  let trucks = getRecords('trucks');
+  if(period==='month'){
+    const {month,year} = state.monthly; const prefix=`${year}-${String(month).padStart(2,'0')}`;
+    containers = containers.filter(r=>r.date && r.date.startsWith(prefix));
+    trucks = trucks.filter(r=>r.date && r.date.startsWith(prefix));
+  }
+  const cAgg = computeContainerAgg(containers);
+  const tAgg = computeTruckAgg(trucks);
+  const resolvedRate = pct(cAgg.totalTreated, cAgg.totalNC);
+  const lossRate = pct(cAgg.totalLoss, cAgg.totalBillQty);
+  const acceptRate = pct(tAgg.accepted, tAgg.total);
+
+  const kpis = [
+    {label: LANG==='ar'?'بوالص مسجّلة':'Bills Logged', value: cAgg.count, tone:'neutral'},
+    {label: LANG==='ar'?'إجمالي Total NC':'Total NC', value: cAgg.totalNC, tone: cAgg.totalNC>0?'warn':'good'},
+    {label: LANG==='ar'?'نسبة المعالجة (Readressed %)':'NC Resolved Rate (Readressed %)', value: resolvedRate==null?'—':resolvedRate.toFixed(1)+'%', tone: resolvedRate==null?'neutral':(resolvedRate>=80?'good':resolvedRate>=50?'warn':'bad')},
+    {label: LANG==='ar'?'نسبة الفاقد من كمية البوليصة':'Loss % of Bill Qty', value: lossRate==null?'—':lossRate.toFixed(2)+'%', tone: lossRate==null?'neutral':(lossRate<=2?'good':lossRate<=5?'warn':'bad')},
+    {label: LANG==='ar'?'شاحنات مفحوصة':'Trucks Inspected', value: tAgg.total, tone:'neutral'},
+    {label: LANG==='ar'?'نسبة قبول الشاحنات':'Truck Acceptance Rate', value: acceptRate==null?'—':acceptRate.toFixed(1)+'%', tone: acceptRate==null?'neutral':(acceptRate>=95?'good':acceptRate>=85?'warn':'bad')}
+  ];
+  const kpiHtml = kpis.map(k=>`<div class="kpi-card ${k.tone}"><div class="kpi-val">${k.value}</div><div class="kpi-lbl">${esc(k.label)}</div></div>`).join('');
+
+  const trend = ncTrendData();
+  const truckParts = [
+    {label: LANG==='ar'?'مقبولة':'Accepted', value:tAgg.accepted, color:'var(--success)'},
+    {label: LANG==='ar'?'مرفوضة':'Rejected', value:tAgg.rejected, color:'var(--danger)'}
+  ];
+  const condLabels = {good:{ar:'سليمة',en:'Good'}, damaged:{ar:'تالفة',en:'Damaged'}, repair:{ar:'تحتاج صيانة',en:'Needs Repair'}};
+  const condColors = {good:'var(--success)', damaged:'var(--danger)', repair:'var(--warn)'};
+  const condParts = Object.keys(cAgg.conditionTally).map(k=>({label:t(condLabels[k]||{ar:k,en:k}), value:cAgg.conditionTally[k], color:condColors[k]||'var(--accent)'}));
+
+  const years = []; const curY = new Date().getFullYear(); for(let y=curY-2;y<=curY+1;y++) years.push(y);
+  const monthOptions = Array.from({length:12},(_,i)=>i+1);
+
+  return `
+  <div class="card">
+    <div class="section-title"><h2>📊 ${esc(t(STR.dashboard))}</h2></div>
+    <div class="period-toggle">
+      <button class="btn btn-sm ${period==='all'?'btn-primary active':'btn-outline'}" data-action="dashboard-period" data-value="all">${LANG==='ar'?'كل الفترة':'All time'}</button>
+      <button class="btn btn-sm ${period==='month'?'btn-primary active':'btn-outline'}" data-action="dashboard-period" data-value="month">${LANG==='ar'?'شهر محدد':'Specific month'}</button>
+      ${period==='month' ? `
+        <select data-action="monthly-month">${monthOptions.map(m=>`<option value="${m}" ${m==state.monthly.month?'selected':''}>${m}</option>`).join('')}</select>
+        <select data-action="monthly-year">${years.map(y=>`<option value="${y}" ${y==state.monthly.year?'selected':''}>${y}</option>`).join('')}</select>
+      ` : ''}
+    </div>
+    <div class="kpi-grid">${kpiHtml}</div>
+  </div>
+  <div class="card chart-card">
+    <h3>${LANG==='ar'?'اتجاه الـ NC خلال آخر ٦ أشهر':'NC Trend (last 6 months)'}</h3>
+    ${renderBarChart(trend, 'var(--accent)')}
+  </div>
+  <div class="card chart-card">
+    <h3>${LANG==='ar'?'نتائج فحص الشاحنات':'Truck Inspection Results'}</h3>
+    ${renderDonut(truckParts)}
+  </div>
+  <div class="card chart-card">
+    <h3>${LANG==='ar'?'حالة الحاويات عند الاستلام':'Container Condition on Receipt'}</h3>
+    ${condParts.length ? renderDonut(condParts) : `<div class="empty-state">${esc(t(STR.noRecords))}</div>`}
+  </div>`;
+}
+
+/* ---- List view ---- */
+function renderList(sectionId){
+  const section = getSection(sectionId);
+  if(!section) return '';
+  let records = getRecords(sectionId);
+  if(state.search) records = records.filter(r=> JSON.stringify(r).toLowerCase().includes(state.search.toLowerCase()));
+  if(state.dateFrom) records = records.filter(r=> r.date && r.date >= state.dateFrom);
+  if(state.dateTo) records = records.filter(r=> r.date && r.date <= state.dateTo);
+  records = records.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b._created||'').localeCompare(a._created||''));
+
+  const rows = records.map(r=>{
+    const mainParts = section.listFields.map(k=>{
+      const f = section.fields.find(ff=>ff.key===k); if(!f) return '';
+      let v = r[k];
+      if(f.type==='select'){ const opt=(f.options||[]).find(o=>o.value===v); v = opt?t(opt.label):v; }
+      return v ? esc(v) : '';
+    }).filter(Boolean).join(' · ');
+    return `<div class="record-card">
+      <div class="top">
+        <div>
+          <div class="main">${mainParts || '—'}</div>
+          <div class="meta">${r.date?esc(r.date):''}</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-outline btn-sm" data-action="edit-record" data-section="${sectionId}" data-id="${r.id}">✏️</button>
+          <button class="btn btn-danger btn-sm" data-action="delete-record" data-section="${sectionId}" data-id="${r.id}">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="card">
+    <div class="section-title">
+      <h2>${section.icon} ${esc(t(section.name))}</h2>
+      <button class="btn btn-primary" data-action="new-record" data-section="${sectionId}">+ ${esc(t(STR.add))}</button>
+    </div>
+    <div class="toolbar">
+      <input type="text" placeholder="${esc(t(STR.search))}" value="${esc(state.search)}" data-action="filter-search" style="flex:1;min-width:140px;">
+      <input type="date" data-action="filter-from" value="${esc(state.dateFrom)}">
+      <input type="date" data-action="filter-to" value="${esc(state.dateTo)}">
+      <button class="btn btn-outline btn-sm" data-action="export-csv" data-section="${sectionId}">${esc(t(STR.exportCsv))}</button>
+      <button class="btn btn-outline btn-sm" data-action="export-xlsx" data-section="${sectionId}">${esc(t(STR.exportXlsx))}</button>
+    </div>
+    ${rows || `<div class="empty-state"><div class="ico">📭</div>${esc(t(STR.noRecords))}</div>`}
+  </div>`;
+}
+
+/* ---- Form view ---- */
+function renderForm(sectionId){
+  const section = getSection(sectionId);
+  if(!section) return '';
+  const record = state.currentRecord;
+  const fieldsHtml = section.fields.map(f=> renderField(f, record)).join('');
+  return `
+  <div class="card">
+    <div class="section-title"><h2>${section.icon} ${esc(t(section.name))}</h2></div>
+    <div class="form-grid">${fieldsHtml}</div>
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <button class="btn btn-primary" data-action="save-record" data-section="${sectionId}">💾 ${esc(t(STR.save))}</button>
+      <button class="btn btn-outline" data-action="nav" data-view="list" data-section="${sectionId}">${esc(t(STR.cancel))}</button>
+    </div>
+  </div>`;
+}
+
+function renderImageField(path, arr, labelHtml){
+  arr = arr||[];
+  const thumbs = arr.map((imgId,idx)=>`<div class="img-thumb"><img data-imgid="${imgId}" alt=""><button class="rm" data-action="remove-image" data-field="${esc(path)}" data-index="${idx}">✕</button></div>`).join('');
+  return `<div class="field field-full">${labelHtml}
+    <div class="img-grid">${thumbs}
+      <label class="file-btn">📷 ${esc(t(STR.addPhotos))}<input type="file" accept="image/*" multiple data-action="add-image" data-field="${esc(path)}"></label>
+    </div>
+  </div>`;
+}
+
+function renderField(f, record){
+  const val = getPath(record, f.key);
+  const req = f.required ? '<span class="req">*</span>' : '';
+  const label = `<label>${esc(t(f.label))} ${req}</label>`;
+  const full = (f.type==='textarea'||f.type==='group'||f.type==='multiDate'||f.type==='image'||f.type==='computed') ? ' field-full' : '';
+
+  if(f.type==='text'){
+    return `<div class="field${full}">${label}<input type="text" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+  }
+  if(f.type==='number'){
+    return `<div class="field${full}">${label}<input type="number" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+  }
+  if(f.type==='date'){
+    return `<div class="field${full}">${label}<input type="date" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+  }
+  if(f.type==='textarea'){
+    return `<div class="field${full}">${label}<textarea data-field="${f.key}">${esc(val||'')}</textarea></div>`;
+  }
+  if(f.type==='unit'){
+    return `<div class="field${full}">${label}
+      <input type="text" list="unitOptionsList" data-field="${f.key}" value="${esc(val||'')}">
+    </div>`;
+  }
+  if(f.type==='select'){
+    const opts = (f.options||[]).map(o=>`<option value="${esc(o.value)}" ${o.value===val?'selected':''}>${esc(t(o.label))}</option>`).join('');
+    return `<div class="field${full}">${label}<select data-field="${f.key}"><option value="">--</option>${opts}</select></div>`;
+  }
+  if(f.type==='computed'){
+    let cv; try{ cv = f.compute(record||{}); }catch(e){ cv=null; }
+    const display = (cv==null || isNaN(cv)) ? '—' : cv.toFixed(2)+'%';
+    return `<div class="field field-full">${label}
+      <div class="computed-box" id="computed-${f.key}">${display}</div>
+      <div class="hint">${LANG==='ar'?'يُحسب تلقائياً':'Calculated automatically'}</div>
+    </div>`;
+  }
+  if(f.type==='multiDate'){
+    const arr = val || [];
+    const rows = arr.map((item,idx)=>`
+      <div class="md-row">
+        <input type="date" data-field="${f.key}.${idx}.prod" value="${esc(item.prod||'')}" placeholder="${LANG==='ar'?'إنتاج':'Prod'}">
+        <span>→</span>
+        <input type="date" data-field="${f.key}.${idx}.exp" value="${esc(item.exp||'')}" placeholder="${LANG==='ar'?'انتهاء':'Exp'}">
+        <button class="btn btn-danger btn-sm" data-action="remove-multidate" data-group="${f.key}" data-index="${idx}">✕</button>
+      </div>`).join('');
+    return `<div class="field field-full">${label}
+      <div class="group-block">${rows || `<div class="hint">${LANG==='ar'?'لا توجد تواريخ مضافة':'No dates added'}</div>`}
+      <button class="btn btn-outline btn-sm" data-action="add-multidate" data-group="${f.key}">+ ${LANG==='ar'?'إضافة تاريخ':'Add date'}</button></div>
+    </div>`;
+  }
+  if(f.type==='group'){
+    const arr = val || [];
+    const normalSubFields = f.fields.filter(sf=>sf.type!=='image');
+    const imageSubFields = f.fields.filter(sf=>sf.type==='image');
+    const items = arr.map((item,idx)=>{
+      const subHtml = normalSubFields.map(sf=>{
+        const sval = item[sf.key];
+        const subLabel = `<label>${esc(t(sf.label))}</label>`;
+        if(sf.type==='select'){
+          const opts = (sf.options||[]).map(o=>`<option value="${esc(o.value)}" ${o.value===sval?'selected':''}>${esc(t(o.label))}</option>`).join('');
+          return `<div class="field">${subLabel}<select data-field="${f.key}.${idx}.${sf.key}"><option value="">--</option>${opts}</select></div>`;
+        }
+        if(sf.type==='textarea') return `<div class="field" style="grid-column:1/-1">${subLabel}<textarea data-field="${f.key}.${idx}.${sf.key}">${esc(sval||'')}</textarea></div>`;
+        if(sf.type==='unit') return `<div class="field">${subLabel}<input type="text" list="unitOptionsList" data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval||'')}"></div>`;
+        const inputType = sf.type==='number'?'number':(sf.type==='date'?'date':'text');
+        return `<div class="field">${subLabel}<input type="${inputType}" data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval||'')}"></div>`;
+      }).join('');
+      const imageHtml = imageSubFields.map(sf=> renderImageField(`${f.key}.${idx}.${sf.key}`, item[sf.key], `<label>${esc(t(sf.label))}</label>`)).join('');
+      return `<div class="group-item"><span class="chip">#${idx+1}</span>
+        <div class="grid-mini" style="margin-top:8px;">${subHtml}</div>
+        ${imageHtml}
+        <div class="rm-row"><button class="btn btn-danger btn-sm" data-action="remove-group-item" data-group="${f.key}" data-index="${idx}">🗑️ ${esc(t(STR.delete))}</button></div>
+      </div>`;
+    }).join('');
+    return `<div class="field field-full">
+      <div class="group-block">
+        <div class="group-header"><b>${esc(t(f.label))}</b>
+        <button class="btn btn-primary btn-sm" data-action="add-group-item" data-group="${f.key}">+ ${esc(t(STR.add))}</button></div>
+        ${items || `<div class="hint">${LANG==='ar'?'لا توجد عناصر بعد':'No items yet'}</div>`}
+      </div>
+    </div>`;
+  }
+  if(f.type==='image'){
+    return renderImageField(f.key, val, label);
+  }
+  return '';
+}
+
+function unitDatalist(){
+  return `<datalist id="unitOptionsList">${UNIT_OPTIONS.map(u=>`<option value="${esc(u)}">`).join('')}</datalist>`;
+}
+
+async function hydrateAllImages(){
+  const imgs = document.querySelectorAll('img[data-imgid]');
+  for(const img of imgs){
+    const id = img.getAttribute('data-imgid');
+    const url = await getImage(id);
+    if(url) img.src = url;
+  }
+  if(!document.getElementById('unitOptionsList')){
+    const div = document.createElement('div'); div.innerHTML = unitDatalist(); document.body.appendChild(div.firstChild);
+  }
+}
+
+function updateComputedDisplays(section){
+  if(!state.currentRecord) return;
+  section.fields.filter(f=>f.type==='computed').forEach(f=>{
+    const el = document.getElementById('computed-'+f.key);
+    if(!el) return;
+    let val; try{ val = f.compute(state.currentRecord); }catch(e){ val=null; }
+    el.textContent = (val==null||isNaN(val)) ? '—' : val.toFixed(2)+'%';
+  });
+}
+
+/* ===================== Monthly Report ===================== */
+function renderMonthly(){
+  const sections = getAllSections();
+  const {month, year} = state.monthly;
+  const monthStr = String(month).padStart(2,'0');
+  const prefix = `${year}-${monthStr}`;
+  const summaries = sections.map(s=>{
+    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
+    const numFields = s.fields.filter(f=>f.type==='number');
+    const totals = numFields.map(f=>{
+      const sum = recs.reduce((acc,r)=> acc + (parseFloat(r[f.key])||0), 0);
+      return {label:f.label, sum};
+    });
+    return {section:s, count:recs.length, totals};
+  });
+
+  const rows = summaries.map(s=>`
+    <tr>
+      <td>${s.section.icon} ${esc(t(s.section.name))}</td>
+      <td>${s.count}</td>
+      <td>${s.totals.map(tt=>`${esc(t(tt.label))}: <b>${tt.sum}</b>`).join(' · ') || '—'}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" data-action="export-csv-month" data-section="${s.section.id}">CSV</button>
+        <button class="btn btn-outline btn-sm" data-action="export-xlsx-month" data-section="${s.section.id}">Excel</button>
+      </td>
+    </tr>`).join('');
+
+  const years = []; const curY = new Date().getFullYear(); for(let y=curY-2;y<=curY+1;y++) years.push(y);
+  const monthOptions = Array.from({length:12},(_,i)=>i+1);
+
+  return `
+  <div class="card">
+    <div class="section-title"><h2>🗓️ ${esc(t(STR.monthly))}</h2></div>
+    <div class="toolbar">
+      <select data-action="monthly-month">${monthOptions.map(m=>`<option value="${m}" ${m==month?'selected':''}>${m}</option>`).join('')}</select>
+      <select data-action="monthly-year">${years.map(y=>`<option value="${y}" ${y==year?'selected':''}>${y}</option>`).join('')}</select>
+      <button class="btn btn-primary btn-sm" data-action="export-combined-month">${esc(t(STR.exportAll))}</button>
+    </div>
+    <table class="summary-table">
+      <thead><tr><th>${LANG==='ar'?'القسم':'Section'}</th><th>${esc(t(STR.recordsCount))}</th><th>${esc(t(STR.summary))}</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ===================== Section Builder ===================== */
+function renderAdminPanel(){
+  const users = getUsers();
+  const rows = users.map(u=>`
+    <div class="record-card">
+      <div class="top">
+        <div><div class="main">${esc(u.name)}</div><div class="meta">${esc(u.role||'')} ${u.biometricCredId?'· 🔒':''}</div></div>
+        <div class="actions"><button class="btn btn-danger btn-sm" data-action="revoke-user" data-id="${u.id}">${esc(t(STR.revokeUser))}</button></div>
+      </div>
+    </div>`).join('');
+  return `
+  <div class="card">
+    <h2>🛡️ ${esc(t(STR.adminPanelTitle))}</h2>
+    <div class="stats-grid" style="margin-bottom:12px;">
+      <div class="stat-card"><div class="ico">🔑</div><div class="num">${adminLoginCount()}</div><div class="lbl">${esc(t(STR.adminLoginCount))}</div></div>
+      <div class="stat-card"><div class="ico">👥</div><div class="num">${users.length}</div><div class="lbl">${esc(t(STR.registeredUsers))}</div></div>
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>${esc(t(STR.masterCodeLabel))}</label>
+      <input type="text" id="masterCodeInput" value="${esc(getMasterCode())}">
+      <div class="hint">${esc(t(STR.masterCodeHint))}</div>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px;" data-action="save-master-code">${esc(t(STR.saveCode))}</button>
+    </div>
+    <div class="desc">${esc(t(STR.registeredUsers))}</div>
+    ${rows || `<div class="empty-state">${esc(t(STR.noUsers))}</div>`}
+  </div>`;
+}
+
+function renderBuilder(){
+  if(!isAdmin()){
+    return `<div class="card"><div class="empty-state"><div class="ico">🔒</div>${esc(t(STR.adminOnlyNotice))}</div></div>`;
+  }
+  const customs = getCustomSections();
+  const existingRows = customs.map(s=>`
+    <div class="record-card">
+      <div class="top">
+        <div><div class="main">${s.icon} ${esc(t(s.name))}</div><div class="meta">${s.fields.length} ${LANG==='ar'?'حقول':'fields'}</div></div>
+        <div class="actions"><button class="btn btn-danger btn-sm" data-action="delete-section" data-section="${s.id}">🗑️</button></div>
+      </div>
+    </div>`).join('');
+
+  const builtinRows = BUILTIN_SECTIONS.map(s=>`<div class="record-card"><div class="top"><div><div class="main">${s.icon} ${esc(t(s.name))}</div><div class="meta">${esc(t(STR.builtin))}</div></div></div></div>`).join('');
+
+  const fieldRows = state.builderFields.map((f,idx)=>`
+    <div class="field-row-builder">
+      <input type="text" placeholder="${esc(t(STR.fieldLabelAr))}" data-builder-field="labelAr" data-index="${idx}" value="${esc(f.labelAr||'')}">
+      <input type="text" placeholder="${esc(t(STR.fieldLabelEn))}" data-builder-field="labelEn" data-index="${idx}" value="${esc(f.labelEn||'')}">
+      <select data-builder-field="type" data-index="${idx}">
+        ${['text','number','date','textarea','select','unit','image'].map(ty=>`<option value="${ty}" ${f.type===ty?'selected':''}>${ty}</option>`).join('')}
+      </select>
+      <button class="btn btn-danger btn-sm" data-action="remove-builder-field" data-index="${idx}">✕</button>
+      ${f.type==='select' ? `<input type="text" style="grid-column:1/-1" placeholder="${esc(t(STR.optionsCsv))}" data-builder-field="options" data-index="${idx}" value="${esc(f.optionsCsv||'')}">` : ''}
+    </div>`).join('');
+
+  return `
+  ${isAdmin() ? renderAdminPanel() : ''}
+  <div class="card">
+    <h2>⚙️ ${esc(t(STR.builder))}</h2>
+    <div class="desc">${LANG==='ar'?'الأقسام الأساسية':'Built-in sections'}</div>
+    ${builtinRows}
+  </div>
+  <div class="card">
+    <div class="desc">${LANG==='ar'?'الأقسام المخصصة':'Custom sections'}</div>
+    ${existingRows || `<div class="empty-state">${esc(t(STR.noRecords))}</div>`}
+  </div>
+  <div class="card">
+    <h2>➕ ${esc(t(STR.newSection))}</h2>
+    <div class="hint" style="margin-bottom:10px;">${LANG==='ar'?'يُضاف حقل "التاريخ" تلقائياً لدعم التقرير الشهري.':'A "Date" field is added automatically to support the monthly report.'}</div>
+    <div class="form-grid">
+      <div class="field"><label>${esc(t(STR.sectionNameAr))}</label><input type="text" id="newSecNameAr"></div>
+      <div class="field"><label>${esc(t(STR.sectionNameEn))}</label><input type="text" id="newSecNameEn"></div>
+      <div class="field"><label>${esc(t(STR.icon))}</label><input type="text" id="newSecIcon" value="📋"></div>
+    </div>
+    <div style="margin-top:12px;">
+      <b>${esc(t(STR.fields))}</b>
+      <div style="margin-top:8px;">${fieldRows}</div>
+      <button class="btn btn-outline btn-sm" data-action="add-builder-field">${esc(t(STR.addField))}</button>
+    </div>
+    <button class="btn btn-primary btn-block" style="margin-top:14px;" data-action="save-custom-section">${esc(t(STR.saveSection))}</button>
+  </div>`;
+}
+
+/* ===================== CSV / Export ===================== */
+function flattenRecordForExport(section, r){
+  const out = {};
+  section.fields.forEach(f=>{
+    if(f.type==='group'){
+      const arr = r[f.key]||[];
+      out[t(f.label)] = arr.map((item,i)=> `#${i+1}: ` + f.fields.map(sf=> sf.type==='image' ? `${t(sf.label)}=${(item[sf.key]||[]).length} ${LANG==='ar'?'صورة':'photo(s)'}` : `${t(sf.label)}=${item[sf.key]||''}`).join(', ')).join(' | ');
+    } else if(f.type==='multiDate'){
+      const arr = r[f.key]||[];
+      out[t(f.label)] = arr.map(item=> `${item.prod||''}→${item.exp||''}`).join(' | ');
+    } else if(f.type==='image'){
+      out[t(f.label)] = (r[f.key]||[]).length + ' ' + (LANG==='ar'?'صورة':'photo(s)');
+    } else if(f.type==='select'){
+      const opt = (f.options||[]).find(o=>o.value===r[f.key]);
+      out[t(f.label)] = opt ? t(opt.label) : (r[f.key]||'');
+    } else if(f.type==='computed'){
+      let v; try{ v = f.compute(r); }catch(e){ v=null; }
+      out[t(f.label)] = (v==null||isNaN(v)) ? '' : v.toFixed(2)+'%';
+    } else {
+      out[t(f.label)] = r[f.key]!=null ? r[f.key] : '';
+    }
+  });
+  return out;
+}
+
+function toCSV(rowsObjArr){
+  if(!rowsObjArr.length) return '';
+  const headers = Object.keys(rowsObjArr[0]);
+  const escCsv = v=> `"${String(v==null?'':v).replace(/"/g,'""')}"`;
+  const lines = [headers.map(escCsv).join(',')];
+  rowsObjArr.forEach(row=> lines.push(headers.map(h=>escCsv(row[h])).join(',')));
+  return '\uFEFF' + lines.join('\r\n');
+}
+
+function downloadFile(filename, content, mime){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+
+function exportSectionCSV(sectionId, filterFn){
+  const section = getSection(sectionId);
+  let records = getRecords(sectionId);
+  if(filterFn) records = records.filter(filterFn);
+  const flat = records.map(r=> flattenRecordForExport(section, r));
+  const csv = toCSV(flat);
+  downloadFile(`${section.id}_${todayISO()}.csv`, csv, 'text/csv;charset=utf-8;');
+  showToast(t(STR.savedOk));
+}
+
+let _sheetJsLoading = null;
+function loadSheetJS(){
+  if(window.XLSX) return Promise.resolve(true);
+  if(_sheetJsLoading) return _sheetJsLoading;
+  _sheetJsLoading = new Promise((resolve)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = ()=> resolve(true);
+    s.onerror = ()=> resolve(false);
+    document.head.appendChild(s);
+    setTimeout(()=>resolve(!!window.XLSX), 6000);
+  });
+  return _sheetJsLoading;
+}
+
+async function exportSectionXLSX(sectionId, filterFn){
+  const section = getSection(sectionId);
+  let records = getRecords(sectionId);
+  if(filterFn) records = records.filter(filterFn);
+  const flat = records.map(r=> flattenRecordForExport(section, r));
+  const ok = await loadSheetJS();
+  if(!ok || !window.XLSX){ exportSectionCSV(sectionId, filterFn); showToast(t(STR.xlsxOfflineFallback)); return; }
+  const ws = XLSX.utils.json_to_sheet(flat);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, section.id.slice(0,28));
+  XLSX.writeFile(wb, `${section.id}_${todayISO()}.xlsx`);
+  showToast(t(STR.savedOk));
+}
+
+async function exportCombinedMonth(){
+  const {month, year} = state.monthly;
+  const prefix = `${year}-${String(month).padStart(2,'0')}`;
+  const sections = getAllSections();
+  const ok = await loadSheetJS();
+  if(!ok || !window.XLSX){
+    sections.forEach(s=> exportSectionCSV(s.id, r=> r.date && r.date.startsWith(prefix)));
+    showToast(t(STR.xlsxOfflineFallback));
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  sections.forEach(s=>{
+    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
+    const flat = recs.map(r=> flattenRecordForExport(s, r));
+    const ws = XLSX.utils.json_to_sheet(flat.length?flat:[{ }]);
+    XLSX.utils.book_append_sheet(wb, ws, s.id.slice(0,28));
+  });
+  XLSX.writeFile(wb, `QA_Monthly_${prefix}.xlsx`);
+  showToast(t(STR.savedOk));
+}
+
+/* ===================== Toast ===================== */
+function showToast(msg){
+  const el = document.createElement('div'); el.className='toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(()=> el.remove(), 2400);
+}
+
+/* ===================== Auth screens ===================== */
+function renderAuthGate(){
+  const s = state.auth.screen;
+  let inner = '';
+  if(s==='welcome') inner = renderWelcomeScreen();
+  else if(s==='accessCode') inner = renderAccessCodeScreen();
+  else if(s==='register') inner = renderRegisterScreen();
+  else if(s==='adminSetup') inner = renderAdminSetupScreen();
+  else if(s==='adminLogin') inner = renderAdminLoginScreen();
+  else if(s==='lock') inner = renderLockScreen();
+  return `
+  <div class="app-header">
+    <div class="brand"><div class="logo">🛡️</div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
+    <div class="header-actions"><button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button></div>
+  </div>
+  <div class="container"><div class="auth-screen"><div class="auth-box">${inner}</div></div></div>`;
+}
+
+function renderWelcomeScreen(){
+  const users = getUsers();
+  const chips = users.map(u=>`<button class="user-chip" data-action="auth-pick-user" data-id="${u.id}"><span><span class="nm">${esc(u.name)}</span><br><span class="rl">${esc(u.role||'')}</span></span><span>›</span></button>`).join('');
+  return `
+  <div class="auth-logo">🛡️</div>
+  <div class="auth-title">${esc(t(STR.welcomeTitle))}</div>
+  <div class="auth-sub">${esc(t(STR.welcomeSub))}</div>
+  ${users.length? `<div class="hint" style="margin-bottom:8px;">${esc(t(STR.whoAreYou))}</div>${chips}`:''}
+  <div class="auth-divider">${LANG==='ar'?'أو':'or'}</div>
+  <button class="btn btn-primary btn-block" data-action="auth-goto" data-screen="accessCode">${esc(t(STR.newUserBtn))}</button>
+  <div style="text-align:center;margin-top:16px;">
+    <button class="link-btn" data-action="auth-goto-admin">${esc(t(STR.adminEntry))}</button>
+  </div>`;
+}
+
+function renderAccessCodeScreen(){
+  return `
+  <div class="auth-title">🔑 ${esc(t(STR.accessCodeTitle))}</div>
+  <div class="auth-sub">${esc(t(STR.accessCodeSub))}</div>
+  <div class="field"><label>${esc(t(STR.accessCodeLabel))}</label><input type="text" id="accessCodeInput" autocomplete="off"></div>
+  <button class="btn btn-primary btn-block" style="margin-top:14px;" data-action="auth-submit-accesscode">${esc(t(STR.continue))}</button>
+  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
+}
+
+function renderRegisterScreen(){
+  const bio = state.regTempBiometric;
+  return `
+  <div class="auth-title">📝 ${esc(t(STR.registerTitle))}</div>
+  <div class="auth-sub">${esc(t(STR.registerSub))}</div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.name))}</label><input type="text" id="regName"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.role))}</label>
+    <select id="regRole">${ROLE_OPTIONS.map(r=>`<option value="${esc(r.v)}">${esc(t(r.l))}</option>`).join('')}</select>
+  </div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.choosePassword))}</label><input type="password" id="regPass"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="regPass2"></div>
+  <button class="btn btn-outline btn-block" style="margin-bottom:6px;" data-action="auth-register-biometric">${bio? esc(t(STR.biometricEnabled)) : esc(t(STR.enableBiometric))}</button>
+  <button class="btn btn-primary btn-block" style="margin-top:8px;" data-action="auth-submit-register">${esc(t(STR.createAccount))}</button>
+  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
+}
+
+function renderAdminSetupScreen(){
+  return `
+  <div class="auth-title">🛡️ ${esc(t(STR.adminSetupTitle))}</div>
+  <div class="auth-sub">${esc(t(STR.adminSetupSub))}</div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminPass"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="adminPass2"></div>
+  <button class="btn btn-primary btn-block" style="margin-top:8px;" data-action="auth-submit-adminsetup">${esc(t(STR.saveAndEnter))}</button>
+  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
+}
+
+function renderAdminLoginScreen(){
+  return `
+  <div class="auth-title">🛡️ ${esc(t(STR.adminLoginTitle))}</div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminLoginPass"></div>
+  <button class="btn btn-primary btn-block" data-action="auth-submit-adminlogin">${esc(t(STR.unlockBtn))}</button>
+  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
+}
+
+function renderLockScreen(){
+  const targetId = state.auth.targetUserId;
+  const isAdminTarget = targetId==='__admin__';
+  const user = isAdminTarget ? {name:t(STR.roleAdmin), biometricCredId: META_CACHE.adminBiometricCredId} : getUsers().find(u=>u.id===targetId);
+  if(!user) return renderWelcomeScreen();
+  return `
+  <div class="auth-logo">🔒</div>
+  <div class="auth-title">${esc(t(STR.lockWelcomeBack))}</div>
+  <div class="auth-sub">${esc(user.name)}</div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.enterPassword))}</label><input type="password" id="lockPass"></div>
+  <button class="btn btn-primary btn-block" data-action="auth-unlock-password">${esc(t(STR.unlockBtn))}</button>
+  ${user.biometricCredId? `<button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="auth-unlock-biometric">${esc(t(STR.unlockBiometricBtn))}</button>`:''}
+  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-switch">${esc(t(STR.switchAccount))}</button></div>`;
+}
+
+function showAccountModal(){
+  const user = getCurrentUser();
+  const overlay = document.createElement('div'); overlay.className='modal-overlay';
+  overlay.innerHTML = `<div class="modal-box">
+    <h3>🔑 ${esc(t(STR.accessLog))}</h3>
+    <div class="record-card"><div class="main">${esc(t(STR.loggedInAs))}: ${esc(user?user.name:'')}</div><div class="meta">${esc(user?(user.role||''):'')}</div></div>
+    <button class="btn btn-danger btn-block" style="margin-top:10px;" data-action="auth-logout">${esc(t(STR.logout))}</button>
+    <button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="close-modal">${esc(t(STR.cancel))}</button>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+/* ===================== Event handling ===================== */
+document.addEventListener('input', e=>{
+  const el = e.target;
+  const path = el.getAttribute('data-field');
+  if(path && state.currentRecord){
+    setPath(state.currentRecord, path, el.value);
+    const section = getSection(state.viewSectionId);
+    if(section) updateComputedDisplays(section);
+  }
+  const bf = el.getAttribute('data-builder-field');
+  if(bf){
+    const idx = parseInt(el.getAttribute('data-index'),10);
+    if(bf==='labelAr') state.builderFields[idx].labelAr = el.value;
+    if(bf==='labelEn') state.builderFields[idx].labelEn = el.value;
+    if(bf==='options') state.builderFields[idx].optionsCsv = el.value;
+  }
+  if(el.getAttribute('data-action')==='filter-search'){ state.search = el.value; render(); }
+});
+
+document.addEventListener('change', e=>{
+  const el = e.target;
+  const path = el.getAttribute('data-field');
+  if(path && el.tagName==='SELECT' && state.currentRecord){
+    setPath(state.currentRecord, path, el.value);
+    const section = getSection(state.viewSectionId);
+    if(section) updateComputedDisplays(section);
+  }
+  const bf = el.getAttribute('data-builder-field');
+  if(bf==='type'){ const idx = parseInt(el.getAttribute('data-index'),10); state.builderFields[idx].type = el.value; render(); }
+
+  if(el.getAttribute('data-action')==='add-image'){
+    const path = el.getAttribute('data-field');
+    const files = Array.from(el.files||[]);
+    let remaining = files.length;
+    if(!remaining) return;
+    files.forEach(file=>{
+      const reader = new FileReader();
+      reader.onload = async ()=>{
+        const id = uid();
+        await saveImage(id, reader.result);
+        const arr = getPath(state.currentRecord, path) || [];
+        arr.push(id);
+        setPath(state.currentRecord, path, arr);
+        remaining--;
+        if(remaining===0) render();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  if(el.getAttribute('data-action')==='filter-from'){ state.dateFrom = el.value; render(); }
+  if(el.getAttribute('data-action')==='filter-to'){ state.dateTo = el.value; render(); }
+  if(el.getAttribute('data-action')==='monthly-month'){ state.monthly.month = parseInt(el.value,10); render(); }
+  if(el.getAttribute('data-action')==='monthly-year'){ state.monthly.year = parseInt(el.value,10); render(); }
+});
+
+document.addEventListener('click', e=>{
+  const el = e.target.closest('[data-action]');
+  if(!el) return;
+  const action = el.getAttribute('data-action');
+
+  /* ---- Auth actions ---- */
+  if(action==='auth-goto'){ state.auth = {screen: el.getAttribute('data-screen')}; render(); return; }
+  if(action==='auth-goto-admin'){ state.auth = {screen: isAdminSetup() ? 'adminLogin' : 'adminSetup'}; render(); return; }
+  if(action==='auth-pick-user'){ state.auth = {screen:'lock', targetUserId: el.getAttribute('data-id')}; render(); return; }
+  if(action==='auth-switch'){ state.auth = {screen:'welcome'}; render(); return; }
+
+  if(action==='auth-submit-accesscode'){
+    const val = (document.getElementById('accessCodeInput').value||'').trim();
+    if(val !== getMasterCode()){ showToast(t(STR.accessCodeWrong)); return; }
+    state.regTempBiometric = null;
+    state.auth = {screen:'register'};
+    render();
+    return;
+  }
+
+  if(action==='auth-register-biometric'){
+    (async ()=>{
+      const nameField = document.getElementById('regName');
+      const label = (nameField && nameField.value.trim()) || 'user';
+      const available = await biometricAvailable();
+      if(!available){ showToast(t(STR.biometricNotAvailable)); return; }
+      const credId = await registerBiometric(label);
+      if(credId){ state.regTempBiometric = credId; render(); } else { showToast(t(STR.biometricNotAvailable)); }
+    })();
+    return;
+  }
+
+  if(action==='auth-submit-register'){
+    (async ()=>{
+      const name = (document.getElementById('regName').value||'').trim();
+      const role = document.getElementById('regRole').value;
+      const pass = document.getElementById('regPass').value;
+      const pass2 = document.getElementById('regPass2').value;
+      if(!name){ showToast(t(STR.requiredMissing)); return; }
+      if(pass.length<4){ showToast(t(STR.passwordTooShort)); return; }
+      if(pass!==pass2){ showToast(t(STR.passwordMismatch)); return; }
+      const passwordHash = await sha256Hex(pass);
+      const user = { id:uid(), name, role, passwordHash, biometricCredId: state.regTempBiometric||null, createdAt:new Date().toISOString() };
+      await saveUserRemote(user);
+      Store.set('qa_currentUserId', user.id);
+      pushAccessLog({name, role, time:new Date().toISOString(), type:'register'});
+      sessionStorage.setItem('qa_unlocked','1');
+      state.regTempBiometric = null; state.auth = null; state.view='home';
+      showToast(t(STR.savedOk)); render();
+    })();
+    return;
+  }
+
+  if(action==='auth-submit-adminsetup'){
+    (async ()=>{
+      const p1 = document.getElementById('adminPass').value;
+      const p2 = document.getElementById('adminPass2').value;
+      if(p1.length<6){ showToast(t(STR.passwordTooShort)); return; }
+      if(p1!==p2){ showToast(t(STR.passwordMismatch)); return; }
+      const hash = await sha256Hex(p1);
+      await saveMetaRemote({adminPasswordHash: hash});
+      Store.set('qa_currentUserId', '__admin__');
+      pushAccessLog({name:t(STR.roleAdmin), role:t(STR.roleAdmin), time:new Date().toISOString(), type:'admin-setup'});
+      sessionStorage.setItem('qa_unlocked','1');
+      state.auth = null; state.view='home';
+      showToast(t(STR.savedOk)); render();
+    })();
+    return;
+  }
+
+  if(action==='auth-submit-adminlogin'){
+    (async ()=>{
+      const p = document.getElementById('adminLoginPass').value;
+      const hash = await sha256Hex(p);
+      if(hash !== META_CACHE.adminPasswordHash){ showToast(t(STR.wrongPassword)); return; }
+      Store.set('qa_currentUserId', '__admin__');
+      pushAccessLog({name:t(STR.roleAdmin), role:t(STR.roleAdmin), time:new Date().toISOString(), type:'admin-login'});
+      sessionStorage.setItem('qa_unlocked','1');
+      state.auth = null; state.view='home';
+      render();
+    })();
+    return;
+  }
+
+  if(action==='auth-unlock-password'){
+    (async ()=>{
+      const targetId = state.auth.targetUserId;
+      const p = document.getElementById('lockPass').value;
+      const hash = await sha256Hex(p);
+      let ok=false, name='', role='';
+      if(targetId==='__admin__'){ ok = hash===META_CACHE.adminPasswordHash; name=t(STR.roleAdmin); role=t(STR.roleAdmin); }
+      else { const u = getUsers().find(x=>x.id===targetId); if(u){ ok = hash===u.passwordHash; name=u.name; role=u.role; } }
+      if(!ok){ showToast(t(STR.wrongPassword)); return; }
+      Store.set('qa_currentUserId', targetId);
+      pushAccessLog({name, role, time:new Date().toISOString(), type:'login'});
+      sessionStorage.setItem('qa_unlocked','1');
+      state.auth = null; state.view='home';
+      render();
+    })();
+    return;
+  }
+
+  if(action==='auth-unlock-biometric'){
+    (async ()=>{
+      const targetId = state.auth.targetUserId;
+      let credId=null, name='', role='';
+      if(targetId==='__admin__'){ credId = META_CACHE.adminBiometricCredId; name=t(STR.roleAdmin); role=t(STR.roleAdmin); }
+      else { const u = getUsers().find(x=>x.id===targetId); if(u){ credId=u.biometricCredId; name=u.name; role=u.role; } }
+      if(!credId){ showToast(t(STR.biometricNotAvailable)); return; }
+      const ok = await verifyBiometric(credId);
+      if(!ok){ showToast(t(STR.biometricNotAvailable)); return; }
+      Store.set('qa_currentUserId', targetId);
+      pushAccessLog({name, role, time:new Date().toISOString(), type:'login-biometric'});
+      sessionStorage.setItem('qa_unlocked','1');
+      state.auth = null; state.view='home';
+      render();
+    })();
+    return;
+  }
+
+  if(action==='auth-logout'){
+    document.querySelectorAll('.modal-overlay').forEach(m=>m.remove());
+    Store.set('qa_currentUserId', null);
+    sessionStorage.removeItem('qa_unlocked');
+    state.auth = {screen:'welcome'};
+    render();
+    return;
+  }
+
+  if(action==='revoke-user'){
+    if(!confirm(t(STR.revokeConfirm))) return;
+    const id = el.getAttribute('data-id');
+    deleteUserRemote(id);
+    return;
+  }
+  if(action==='save-master-code'){
+    const val = (document.getElementById('masterCodeInput').value||'').trim();
+    if(!val) return;
+    saveMetaRemote({masterCode: val});
+    showToast(t(STR.savedOk));
+    return;
+  }
+
+  /* ---- General app actions ---- */
+  if(action==='nav'){
+    const view = el.getAttribute('data-view'); const section = el.getAttribute('data-section');
+    if(view==='builder' && !isAdmin()){ showToast(t(STR.adminOnlyNotice)); return; }
+    state.view = view; state.viewSectionId = section || null; state.search=''; state.dateFrom=''; state.dateTo='';
+    render();
+  }
+  else if(action==='toggle-lang'){ LANG = LANG==='ar'?'en':'ar'; localStorage.setItem('qa_lang', LANG); render(); }
+  else if(action==='open-account-modal'){ showAccountModal(); }
+  else if(action==='close-modal'){ document.querySelectorAll('.modal-overlay').forEach(m=>m.remove()); }
+
+  else if(action==='dashboard-period'){ state.dashboardPeriod = el.getAttribute('data-value'); render(); }
+
+  else if(action==='new-record'){
+    const sectionId = el.getAttribute('data-section'); const section = getSection(sectionId);
+    state.currentRecord = newRecord(section);
+    if(!state.currentRecord.date) state.currentRecord.date = todayISO();
+    state.view='form'; state.viewSectionId = sectionId; render();
+  }
+  else if(action==='edit-record'){
+    const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
+    const rec = getRecords(sectionId).find(r=>r.id===id);
+    state.currentRecord = JSON.parse(JSON.stringify(rec));
+    state.view='form'; state.viewSectionId = sectionId; render();
+  }
+  else if(action==='delete-record'){
+    const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
+    if(!confirm(t(STR.confirmDelete))) return;
+    deleteRecordRemote(sectionId, id);
+    showToast(t(STR.deletedOk));
+  }
+  else if(action==='save-record'){
+    const sectionId = el.getAttribute('data-section'); const section = getSection(sectionId);
+    const rec = state.currentRecord;
+    const missing = section.fields.filter(f=>f.required && !rec[f.key]);
+    if(missing.length){ showToast(t(STR.requiredMissing)); return; }
+    saveRecordRemote(sectionId, rec);
+    showToast(t(STR.savedOk));
+    state.view='list'; render();
+  }
+
+  else if(action==='add-group-item'){
+    const key = el.getAttribute('data-group');
+    const section = getSection(state.viewSectionId);
+    const field = section.fields.find(f=>f.key===key);
+    const item = {}; field.fields.forEach(sf=> item[sf.key] = sf.type==='image' ? [] : '');
+    if(!state.currentRecord[key]) state.currentRecord[key]=[];
+    state.currentRecord[key].push(item); render();
+  }
+  else if(action==='remove-group-item'){
+    const key = el.getAttribute('data-group'); const idx = parseInt(el.getAttribute('data-index'),10);
+    state.currentRecord[key].splice(idx,1); render();
+  }
+  else if(action==='add-multidate'){
+    const key = el.getAttribute('data-group');
+    if(!state.currentRecord[key]) state.currentRecord[key]=[];
+    state.currentRecord[key].push({prod:'',exp:''}); render();
+  }
+  else if(action==='remove-multidate'){
+    const key = el.getAttribute('data-group'); const idx = parseInt(el.getAttribute('data-index'),10);
+    state.currentRecord[key].splice(idx,1); render();
+  }
+  else if(action==='remove-image'){
+    const path = el.getAttribute('data-field'); const idx = parseInt(el.getAttribute('data-index'),10);
+    const arr = getPath(state.currentRecord, path) || [];
+    const imgId = arr[idx];
+    deleteImageFromDB(imgId);
+    arr.splice(idx,1);
+    setPath(state.currentRecord, path, arr);
+    render();
+  }
+
+  else if(action==='export-csv'){ exportSectionCSV(el.getAttribute('data-section')); }
+  else if(action==='export-xlsx'){ exportSectionXLSX(el.getAttribute('data-section')); }
+  else if(action==='export-csv-month'){
+    const {month,year}=state.monthly; const prefix = `${year}-${String(month).padStart(2,'0')}`;
+    exportSectionCSV(el.getAttribute('data-section'), r=> r.date && r.date.startsWith(prefix));
+  }
+  else if(action==='export-xlsx-month'){
+    const {month,year}=state.monthly; const prefix = `${year}-${String(month).padStart(2,'0')}`;
+    exportSectionXLSX(el.getAttribute('data-section'), r=> r.date && r.date.startsWith(prefix));
+  }
+  else if(action==='export-combined-month'){ exportCombinedMonth(); }
+
+  else if(action==='add-builder-field'){ state.builderFields.push({labelAr:'',labelEn:'',type:'text',optionsCsv:''}); render(); }
+  else if(action==='remove-builder-field'){ const idx=parseInt(el.getAttribute('data-index'),10); state.builderFields.splice(idx,1); render(); }
+  else if(action==='delete-section'){
+    if(!confirm(t(STR.deleteSectionConfirm))) return;
+    const sid = el.getAttribute('data-section');
+    deleteCustomSectionRemote(sid);
+  }
+  else if(action==='save-custom-section'){
+    const nameAr = document.getElementById('newSecNameAr').value.trim();
+    const nameEn = document.getElementById('newSecNameEn').value.trim();
+    const icon = document.getElementById('newSecIcon').value.trim() || '📋';
+    if(!nameAr && !nameEn){ showToast(t(STR.requiredMissing)); return; }
+    const fields = [{key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true}];
+    state.builderFields.forEach((bf,i)=>{
+      const key = 'f'+i+'_'+(bf.labelEn||bf.labelAr||'field').toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,16);
+      const field = {key: key||('f'+i), type: bf.type, label:{ar: bf.labelAr||bf.labelEn, en: bf.labelEn||bf.labelAr}};
+      if(bf.type==='select'){
+        field.options = (bf.optionsCsv||'').split(',').map(s=>s.trim()).filter(Boolean).map(v=>({value:v, label:{ar:v, en:v}}));
+      }
+      fields.push(field);
+    });
+    const newSection = { id:'custom_'+uid(), builtin:false, icon, name:{ar:nameAr||nameEn, en:nameEn||nameAr}, listFields: fields.slice(0,4).map(f=>f.key), fields };
+    saveCustomSection(newSection);
+    state.builderFields = [];
+    showToast(t(STR.savedOk));
+    render();
+  }
+});
+
+/* ===================== Init ===================== */
+window.addEventListener('online', render);
+window.addEventListener('offline', render);
+window.addEventListener('load', ()=>{ subscribeAllCoreData(); initAuthState(); render(); });
+</script>
+
+<script>
+/* ===================== PWA: install + auto-update notification ===================== */
+const APP_VERSION = 'v1.1.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').then(reg=>{
+      reg.addEventListener('updatefound', ()=>{
+        const newWorker = reg.installing;
+        if(!newWorker) return;
+        newWorker.addEventListener('statechange', ()=>{
+          if(newWorker.state==='installed' && navigator.serviceWorker.controller){
+            showUpdateBanner(reg);
+          }
+        });
+      });
+    }).catch(err=> console.warn('SW registration failed', err));
+  });
+  let refreshingAfterUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(refreshingAfterUpdate) return;
+    refreshingAfterUpdate = true;
+    window.location.reload();
+  });
+}
+function showUpdateBanner(reg){
+  if(document.getElementById('updateBanner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'updateBanner'; bar.className = 'update-banner';
+  const isAr = document.documentElement.lang === 'ar';
+  bar.innerHTML = `<span>🔄 ${isAr ? 'يوجد تحديث جديد للتطبيق' : 'A new update is available'}</span>
+    <button id="updateNowBtn">${isAr ? 'تحديث الآن' : 'Update now'}</button>`;
+  document.body.appendChild(bar);
+  document.getElementById('updateNowBtn').addEventListener('click', ()=>{
+    if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+  });
+}
+</script>
+</body>
+</html>
