@@ -34,10 +34,16 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 /* Header */
 .app-header{
   background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%);
-  color:#fff; padding:14px 16px; position:sticky; top:0; z-index:40;
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  color:#fff; padding:14px 16px 0; position:sticky; top:0; z-index:40;
   box-shadow:0 2px 10px rgba(0,0,0,.15);
 }
+.header-top{display:flex; align-items:center; justify-content:space-between; gap:8px; padding-bottom:12px;}
+.tagline-strip{
+  border-top:1px solid rgba(255,255,255,.16);
+  padding:7px 4px 9px; text-align:center; font-size:12px; font-weight:700;
+  color:#EAF2FC; letter-spacing:.2px; display:flex; align-items:center; justify-content:center; gap:6px;
+}
+.tagline-strip .dot{color:#F0B429; font-size:10px;}
 .app-header .brand{display:flex; align-items:center; gap:10px; min-width:0;}
 .app-header .brand .logo{
   width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.12);
@@ -232,7 +238,37 @@ try{
 /* ===================== State & Storage ===================== */
 let LANG = localStorage.getItem('qa_lang') || 'ar';
 const DEFAULT_MASTER_CODE = 'DAL-QA-2026'; // <-- الكود الافتراضي لأول دخول لأفراد الفريق. يمكن للمسؤول تغييره من "إدارة الأقسام > لوحة التحكم الإدارية"، لكن لازم يبلّغ الفريق بالكود الجديد ويُعاد توزيع نفس الملف عليهم لأن التطبيق يعمل بدون سيرفر مركزي.
-const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, search:'', dateFrom:'', dateTo:'', builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null };
+
+/* عبارات ترحيبية احترافية تخص الجودة وسلسلة الإمداد - تظهر أعلى التطبيق، وتُختار واحدة عشوائيًا مع كل جلسة استخدام جديدة */
+const WELCOME_TAGLINES = [
+  {ar:'الجودة تصنع الفرق', en:'Quality Makes the Difference'},
+  {ar:'التميز في كل تفصيلة', en:'Excellence in Every Detail'},
+  {ar:'جودة تستحق الثقة', en:'Quality You Can Trust'},
+  {ar:'سلسلة إمداد بلا توقف', en:'A Supply Chain That Never Stops'},
+  {ar:'دقة اليوم أساس نجاح الغد', en:"Today's Precision, Tomorrow's Success"},
+  {ar:'معايير عالية، نتائج أعلى', en:'High Standards, Higher Results'},
+  {ar:'كل شحنة تستحق الفحص', en:'Every Shipment Deserves Inspection'},
+  {ar:'نحو سلسلة إمداد أكثر أمانًا', en:'Towards a Safer Supply Chain'},
+  {ar:'الالتزام بالجودة مسؤولية الجميع', en:'Quality Commitment is Everyone\'s Responsibility'},
+  {ar:'من الفحص الدقيق تبدأ الثقة', en:'Trust Begins with Careful Inspection'}
+];
+const SESSION_TAGLINE = WELCOME_TAGLINES[Math.floor(Math.random()*WELCOME_TAGLINES.length)];
+
+/* رفع الصور لخدمة ImgBB المجانية عشان تتزامن الصور بين كل الأفراد من غير أي تكلفة على Firebase */
+const IMGBB_API_KEY = '2e40bd26cdd16811e0091eb15993b992';
+async function uploadToImgBB(dataUrl){
+  try{
+    const base64 = dataUrl.split(',')[1];
+    const formData = new FormData();
+    formData.append('key', IMGBB_API_KEY);
+    formData.append('image', base64);
+    const res = await fetch('https://api.imgbb.com/1/upload', { method:'POST', body: formData });
+    const json = await res.json();
+    if(json && json.success && json.data && json.data.url) return json.data.url;
+    return null;
+  }catch(e){ console.warn('ImgBB upload failed', e); return null; }
+}
+const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, search:'', dateFrom:'', dateTo:'', builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null, formTemp:{}, builtinFieldTarget:null };
 
 const Store = {
   get(key, def){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }catch(e){ return def; } },
@@ -241,25 +277,90 @@ const Store = {
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function t(o){ if(o==null) return ''; if(typeof o==='string') return o; return o[LANG] || o.ar || o.en || ''; }
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+function todayISO(){ const d = new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function pct(part,total){ const p=parseFloat(part)||0; const tt=parseFloat(total)||0; if(tt<=0) return null; return p/tt*100; }
 
-/* ===================== IndexedDB (images) ===================== */
+/* ===================== IndexedDB (images + exported files) ===================== */
 let _dbPromise=null;
 function openDB(){
   if(_dbPromise) return _dbPromise;
   _dbPromise = new Promise((resolve,reject)=>{
-    const req = indexedDB.open('qaSystemDB', 1);
-    req.onupgradeneeded = e=>{ const db=e.target.result; if(!db.objectStoreNames.contains('images')) db.createObjectStore('images',{keyPath:'id'}); };
-    req.onsuccess = e=>resolve(e.target.result);
-    req.onerror = e=>reject(e);
+    const req = indexedDB.open('qaSystemDB', 2);
+    let settled = false;
+    req.onupgradeneeded = e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains('images')) db.createObjectStore('images',{keyPath:'id'});
+      if(!db.objectStoreNames.contains('files')) db.createObjectStore('files',{keyPath:'id'});
+    };
+    req.onsuccess = e=>{ settled = true; resolve(e.target.result); };
+    req.onerror = e=>{ settled = true; _dbPromise = null; reject(e); };
+    req.onblocked = ()=>{ console.warn('IndexedDB upgrade blocked — another tab of this app may be open'); };
+    setTimeout(()=>{ if(!settled){ settled = true; _dbPromise = null; reject(new Error('IndexedDB open timed out')); } }, 5000);
   });
   return _dbPromise;
 }
 async function saveImage(id, dataUrl){ const db = await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction('images','readwrite'); tx.objectStore('images').put({id,dataUrl}); tx.oncomplete=()=>res(true); tx.onerror=e=>rej(e); }); }
 async function getImage(id){ try{ const db = await openDB(); return new Promise((res)=>{ const tx=db.transaction('images','readonly'); const r=tx.objectStore('images').get(id); r.onsuccess=()=>res(r.result?r.result.dataUrl:null); r.onerror=()=>res(null); }); }catch(e){ return null; } }
 async function deleteImageFromDB(id){ try{ const db = await openDB(); const tx=db.transaction('images','readwrite'); tx.objectStore('images').delete(id); }catch(e){} }
+
+function textToDataUrl(text, mime){
+  const bytes = new TextEncoder().encode(text);
+  let binary = ''; bytes.forEach(b=> binary += String.fromCharCode(b));
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+async function storeExportedFile(filename, kind, dataUrl){
+  try{
+    const db = await openDB();
+    const meta = { id: uid(), filename, kind, dataUrl, createdAt: new Date().toISOString() };
+    await new Promise((res,rej)=>{ const tx=db.transaction('files','readwrite'); tx.objectStore('files').put(meta); tx.oncomplete=()=>res(true); tx.onerror=e=>rej(e); });
+  }catch(e){ console.warn('storeExportedFile failed', e); }
+}
+async function getExportedFiles(){
+  try{
+    const db = await openDB();
+    return new Promise((res)=>{ const tx=db.transaction('files','readonly'); const req=tx.objectStore('files').getAll(); req.onsuccess=()=>res(req.result||[]); req.onerror=()=>res([]); });
+  }catch(e){ return []; }
+}
+async function deleteExportedFile(id){
+  try{ const db = await openDB(); const tx=db.transaction('files','readwrite'); tx.objectStore('files').delete(id); }catch(e){}
+}
+function downloadDataUrlFile(filename, dataUrl){
+  const a = document.createElement('a'); a.href = dataUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+}
+async function viewDataUrlFile(dataUrl){
+  try{
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, '_blank');
+    if(!w) downloadDataUrlFile('file.pdf', dataUrl);
+    setTimeout(()=> URL.revokeObjectURL(blobUrl), 120000);
+  }catch(e){
+    console.warn('view failed', e);
+    downloadDataUrlFile('file.pdf', dataUrl);
+  }
+}
+async function dataUrlToFile(dataUrl, filename, mime){
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  return new File([blob], filename, {type: mime || blob.type});
+}
+async function shareStoredFileMeta(f){
+  const mimeMap = { pdf:'application/pdf', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', csv:'text/csv' };
+  try{
+    const file = await dataUrlToFile(f.dataUrl, f.filename, mimeMap[f.kind]);
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title: f.filename});
+    } else {
+      showToast(t(STR.shareNotSupported));
+    }
+  }catch(err){
+    if(err && err.name === 'AbortError') return; // user cancelled the share sheet
+    console.warn('share failed', err);
+    showToast(t(STR.shareNotSupported));
+  }
+}
 
 /* ===================== Security helpers (password hashing + biometric) ===================== */
 async function sha256Hex(str){
@@ -310,7 +411,7 @@ const STR = {
   containers:{ar:'فحص الحاويات', en:'Container Inspection'},
   trucks:{ar:'فحص الشاحنات', en:'Truck Inspection'},
   monthly:{ar:'التقرير الشهري', en:'Monthly Report'},
-  builder:{ar:'إدارة الأقسام', en:'Manage Sections'},
+  builder:{ar:'الإعدادات', en:'Settings'},
   add:{ar:'إضافة', en:'Add'},
   save:{ar:'حفظ', en:'Save'},
   cancel:{ar:'إلغاء', en:'Cancel'},
@@ -349,14 +450,33 @@ const STR = {
   online:{ar:'متصل', en:'Online'},
   offline:{ar:'غير متصل', en:'Offline'},
   builtin:{ar:'قسم أساسي', en:'Built-in'},
+  customFieldTag:{ar:'حقل مُضاف', en:'Added field'},
+  addFieldToSectionHint:{ar:'الحقل الجديد هيتضاف في آخر نموذج هذا القسم لكل السجلات القادمة', en:'The new field will be appended to the end of this section\'s form for future records'},
   addPhotos:{ar:'إضافة صور', en:'Add Photos'},
   xlsxOfflineFallback:{ar:'تعذر الاتصال لتحميل مُصدِّر الإكسل، تم التصدير كملف CSV بدلاً من ذلك.', en:'Could not reach the Excel exporter, exported as CSV instead.'},
+  sharePdf:{ar:'مشاركة PDF', en:'Share PDF'},
+  dailyReportPdf:{ar:'📄 تقرير اليوم PDF', en:'📄 Today\'s Report PDF'},
+  generatingPdf:{ar:'جاري تجهيز ملف PDF...', en:'Preparing PDF...'},
+  pdfLoadFailed:{ar:'تعذر تحميل أداة PDF، تأكد من الاتصال بالإنترنت وحاول تاني', en:'Could not load the PDF tool — check your internet connection and try again'},
+  imageSaveFailed:{ar:'تعذر حفظ الصورة، جرب تقفل كل نوافذ/تابات التطبيق وافتحه من جديد', en:'Could not save the image — try closing all tabs/windows of the app and reopening it'},
+  popupBlocked:{ar:'المتصفح منع فتح نافذة جديدة، من فضلك اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني', en:'Your browser blocked the new window — please allow pop-ups for this site and try again'},
+  filesTab:{ar:'الملفات', en:'Files'},
+  filesHint:{ar:'الملفات دي (PDF/Excel/CSV) محفوظة على هذا الجهاز فقط، مش متزامنة مع باقي الفريق', en:'These files (PDF/Excel/CSV) are stored on this device only — not synced with the rest of the team'},
+  downloadAgain:{ar:'تنزيل', en:'Download'},
+  deleteFile:{ar:'حذف', en:'Delete'},
+  viewFile:{ar:'عرض', en:'View'},
+  shareFile:{ar:'مشاركة', en:'Share'},
+  shareNotSupported:{ar:'المشاركة غير مدعومة على هذا المتصفح، استخدم زرار التنزيل بدلاً منها', en:'Sharing is not supported on this browser — use the Download button instead'},
 
   /* auth */
   welcomeTitle:{ar:'أهلاً بك 👋', en:'Welcome 👋'},
   welcomeSub:{ar:'اختر حسابك أو سجّل دخول لأول مرة', en:'Choose your account or sign in for the first time'},
   whoAreYou:{ar:'من أنت؟', en:'Who are you?'},
   newUserBtn:{ar:'➕ مستخدم جديد (لدي كود دخول)', en:'➕ New user (I have an access code)'},
+  existingUserNewDevice:{ar:'أنا مستخدم بالفعل (جهاز جديد)', en:'I already have an account (new device)'},
+  findAccountTitle:{ar:'البحث عن حسابك', en:'Find your account'},
+  findAccountSub:{ar:'اكتب اسمك بالظبط زي ما سجّلته أول مرة', en:'Type your name exactly as you registered it'},
+  accountNotFound:{ar:'لم يتم العثور على حساب بهذا الاسم، تأكد من الاسم أو اعمل حساب جديد', en:'No account found with that name — check the spelling or create a new account'},
   adminEntry:{ar:'دخول المسؤول الرئيسي', en:'Main admin sign-in'},
   accessCodeTitle:{ar:'كود الدخول', en:'Access Code'},
   accessCodeSub:{ar:'أدخل كود الدخول اللي استلمته من المسؤول الرئيسي (م. محمد) عشان تقدر تسجّل حسابك', en:'Enter the access code you received from the main admin to register your account'},
@@ -383,15 +503,24 @@ const STR = {
   unlockBtn:{ar:'دخول', en:'Sign in'},
   unlockBiometricBtn:{ar:'🔓 دخول بالبصمة', en:'🔓 Sign in with fingerprint'},
   switchAccount:{ar:'مستخدم آخر', en:'Switch account'},
+  forgotPassword:{ar:'نسيت كلمة السر؟', en:'Forgot password?'},
+  resetRequestSent:{ar:'تم إرسال طلبك للمسؤول الرئيسي، تواصل معاه ليعيد ضبط كلمة السر لك', en:'Your request was sent to the main admin — contact them to reset your password'},
+  pendingResetRequests:{ar:'طلبات إعادة تعيين كلمة السر', en:'Pending Password Reset Requests'},
+  resetPasswordAction:{ar:'إعادة تعيين', en:'Reset'},
+  setNewPasswordTitle:{ar:'كلمة سر جديدة لـ', en:'New password for'},
+  setNewPasswordPlaceholder:{ar:'اكتب كلمة السر الجديدة (٤ أحرف على الأقل)', en:'Enter new password (min 4 characters)'},
+  resetDonePrefix:{ar:'تم ضبط كلمة السر. أبلغ المستخدم بالكلمة الجديدة:', en:'Password reset. Tell the user their new password:'},
   logout:{ar:'تسجيل الخروج', en:'Log out'},
   loggedInAs:{ar:'مسجّل دخول باسم', en:'Signed in as'},
   adminPanelTitle:{ar:'لوحة التحكم الإدارية', en:'Admin Control Panel'},
   masterCodeLabel:{ar:'كود الدخول الحالي لأفراد الفريق', en:'Current team access code'},
   masterCodeHint:{ar:'شارك هذا الكود مع أفراد فريقك ليسجّلوا حساباتهم أول مرة فقط. تغييره يفعّل على هذا الجهاز فقط؛ لو غيّرته لازم توزّع نفس نسخة الملف على الجميع.', en:'Share this code with your team for first-time registration only. Changing it applies to this device only; redistribute the same file if changed.'},
   saveCode:{ar:'حفظ الكود', en:'Save code'},
-  registeredUsers:{ar:'المستخدمون المسجّلون على هذا الجهاز', en:'Users registered on this device'},
+  registeredUsers:{ar:'المستخدمون المسجّلون في الفريق', en:'Registered Team Members'},
   noUsers:{ar:'لا يوجد مستخدمون بعد', en:'No users yet'},
   revokeUser:{ar:'إلغاء الحساب', en:'Revoke'},
+  makeAdmin:{ar:'اجعله مسؤولاً', en:'Make Admin'},
+  removeAdmin:{ar:'إلغاء صلاحية المسؤول', en:'Remove Admin'},
   revokeConfirm:{ar:'إلغاء حساب هذا المستخدم؟ هيحتاج كود دخول جديد للتسجيل تاني', en:'Revoke this user? They will need a new access code to register again'},
   you:{ar:'أنت', en:'You'},
   roleAdmin:{ar:'مسؤول رئيسي', en:'Main Admin'},
@@ -465,7 +594,7 @@ const BUILTIN_SECTIONS = [
       {key:'images', type:'image', label:{ar:'صور البوليصة', en:'Bill Images'}}
     ]
   },
-  { id:'trucks', builtin:true, icon:'🚚', name:{ar:'فحص الشاحنات', en:'Truck Inspection'},
+  { id:'trucks', builtin:true, icon:'🚚', pdfMode:'daily', name:{ar:'فحص الشاحنات', en:'Truck Inspection'},
     listFields:['date','truckNo','destination','inspectionResult'],
     fields:[
       {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
@@ -502,9 +631,38 @@ const RECORDS_CACHE = {};        // { sectionId: [records...] }
 const USERS_CACHE = { list: [] };
 const META_CACHE = { masterCode: null, adminPasswordHash: null, adminBiometricCredId: null };
 const ACCESS_LOG_CACHE = { list: [] };
+const RESET_REQUESTS_CACHE = { list: [] };
+const BUILTIN_EXTENSIONS_CACHE = { map: {} }; // { sectionId: [extraField, ...] }
 const _subscribedSections = new Set();
 
 function qaCol(path){ return db.collection('qa_app').doc(path.split('/')[0]).collection(path.split('/')[1] || 'items'); }
+
+let _appBooted = false;
+let _metaReady = false;
+let _usersReady = false;
+let _renderScheduled = false;
+function scheduleRender(){
+  if(!_appBooted) return;
+  if(_renderScheduled) return;
+  _renderScheduled = true;
+  requestAnimationFrame(()=>{ _renderScheduled = false; render(); });
+}
+function tryBootApp(){
+  if(_appBooted) return;
+  if(!_metaReady || !_usersReady) return;
+  _appBooted = true;
+  initAuthState();
+  render();
+  setTimeout(()=> retryPendingImageUploads(), 1500);
+}
+function renderLoadingScreen(){
+  return `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg);">
+    <div style="text-align:center;">
+      <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--navy),var(--navy3));color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 14px;">🛡️</div>
+      <div style="color:var(--muted);font-size:13px;">${LANG==='ar'?'جاري التحميل...':'Loading...'}</div>
+    </div>
+  </div>`;
+}
 
 function subscribeMeta(){
   db.collection('qa_app').doc('meta').onSnapshot(snap=>{
@@ -512,30 +670,38 @@ function subscribeMeta(){
     META_CACHE.masterCode = d.masterCode || null;
     META_CACHE.adminPasswordHash = d.adminPasswordHash || null;
     META_CACHE.adminBiometricCredId = d.adminBiometricCredId || null;
-    if(state.auth) render();
-    else if(state.view==='builder') render();
+    if(!_metaReady){ _metaReady = true; tryBootApp(); }
+    if(_appBooted){ if(state.auth) scheduleRender(); else if(state.view==='builder') scheduleRender(); }
   }, err=> console.warn('meta sync error', err));
 }
 function subscribeUsers(){
   qaCol('users/items').onSnapshot(snap=>{
     const arr = []; snap.forEach(doc=> arr.push({id:doc.id, ...doc.data()}));
     USERS_CACHE.list = arr;
-    render();
+    if(!_usersReady){ _usersReady = true; tryBootApp(); }
+    scheduleRender();
   }, err=> console.warn('users sync error', err));
 }
 function subscribeAccessLog(){
   qaCol('accessLog/items').orderBy('time','desc').limit(500).onSnapshot(snap=>{
     const arr = []; snap.forEach(doc=> arr.push({id:doc.id, ...doc.data()}));
     ACCESS_LOG_CACHE.list = arr;
-    if(state.view==='builder') render();
+    if(_appBooted && state.view==='builder') scheduleRender();
   }, err=> console.warn('accessLog sync error', err));
+}
+function subscribeResetRequests(){
+  qaCol('passwordResetRequests/items').onSnapshot(snap=>{
+    const arr = []; snap.forEach(doc=> arr.push({id:doc.id, ...doc.data()}));
+    RESET_REQUESTS_CACHE.list = arr;
+    if(_appBooted && state.view==='builder') scheduleRender();
+  }, err=> console.warn('resetRequests sync error', err));
 }
 function subscribeCustomSections(){
   qaCol('customSections/items').onSnapshot(snap=>{
     const arr = []; snap.forEach(doc=> arr.push(doc.data()));
     CUSTOM_SECTIONS_CACHE.list = arr;
     arr.forEach(s=> subscribeSection(s.id));
-    render();
+    scheduleRender();
   }, err=> console.warn('customSections sync error', err));
 }
 function subscribeSection(sectionId){
@@ -545,24 +711,50 @@ function subscribeSection(sectionId){
   qaCol('records_'+sectionId+'/items').onSnapshot(snap=>{
     const arr = []; snap.forEach(doc=> arr.push(doc.data()));
     RECORDS_CACHE[sectionId] = arr;
-    if(!state.auth && state.view!=='form') render();
+    if(_appBooted && !state.auth && state.view!=='form') scheduleRender();
   }, err=> console.warn('records sync error', sectionId, err));
+}
+function subscribeBuiltinExtensions(){
+  db.collection('qa_app').doc('builtinExtensions').onSnapshot(snap=>{
+    const d = snap.data() || {};
+    BUILTIN_EXTENSIONS_CACHE.map = d;
+    scheduleRender();
+  }, err=> console.warn('builtinExtensions sync error', err));
 }
 function subscribeAllCoreData(){
   subscribeMeta();
   subscribeUsers();
   subscribeAccessLog();
+  subscribeResetRequests();
   subscribeCustomSections();
+  subscribeBuiltinExtensions();
   BUILTIN_SECTIONS.forEach(s=> subscribeSection(s.id));
 }
 
 function getCustomSections(){ return CUSTOM_SECTIONS_CACHE.list; }
 function saveCustomSection(section){ return qaCol('customSections/items').doc(section.id).set(section); }
+function addFieldToBuiltinSection(sectionId, field){
+  const current = BUILTIN_EXTENSIONS_CACHE.map[sectionId] || [];
+  const updated = [...current, field];
+  return db.collection('qa_app').doc('builtinExtensions').set({[sectionId]: updated}, {merge:true});
+}
+function removeFieldFromBuiltinSection(sectionId, fieldKey){
+  const current = BUILTIN_EXTENSIONS_CACHE.map[sectionId] || [];
+  const updated = current.filter(f=>f.key!==fieldKey);
+  return db.collection('qa_app').doc('builtinExtensions').set({[sectionId]: updated}, {merge:true});
+}
 function deleteCustomSectionRemote(sectionId){
   qaCol('customSections/items').doc(sectionId).delete();
   qaCol('records_'+sectionId+'/items').get().then(snap=> snap.forEach(doc=> doc.ref.delete()));
 }
-function getAllSections(){ return [...BUILTIN_SECTIONS, ...getCustomSections()]; }
+function getAllSections(){
+  const builtinsWithExtras = BUILTIN_SECTIONS.map(s=>{
+    const extra = BUILTIN_EXTENSIONS_CACHE.map[s.id];
+    if(!extra || !extra.length) return s;
+    return {...s, fields: [...s.fields, ...extra]};
+  });
+  return [...builtinsWithExtras, ...getCustomSections()];
+}
 function getSection(id){ return getAllSections().find(s=>s.id===id); }
 
 /* ===================== Records storage ===================== */
@@ -631,6 +823,7 @@ function render(){
   else if(state.view==='list') html += renderList(state.viewSectionId);
   else if(state.view==='form') html += renderForm(state.viewSectionId);
   else if(state.view==='monthly') html += renderMonthly();
+  else if(state.view==='files') html += renderFilesView();
   else if(state.view==='builder') html += renderBuilder();
   html += '</div>' + renderTabbar();
   app.innerHTML = html;
@@ -642,18 +835,21 @@ function renderHeader(){
   const user = getCurrentUser();
   return `
   <div class="app-header">
-    <div class="brand">
-      <div class="logo">🛡️</div>
-      <div class="titles">
-        <h1>${esc(t(STR.appName))}</h1>
-        <div class="sub">${user?esc(user.name):'QA Supply Chain'}</div>
+    <div class="header-top">
+      <div class="brand">
+        <div class="logo">🛡️</div>
+        <div class="titles">
+          <h1>${esc(t(STR.appName))}</h1>
+          <div class="sub">${user?esc(user.name):'QA Supply Chain'}</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="status-pill ${online?'':'offline'}"><span class="status-dot"></span>${online?esc(t(STR.online)):esc(t(STR.offline))}</span>
+        <button class="icon-btn" data-action="open-account-modal" title="${esc(t(STR.accessLog))}">🔑</button>
+        <button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button>
       </div>
     </div>
-    <div class="header-actions">
-      <span class="status-pill ${online?'':'offline'}"><span class="status-dot"></span>${online?esc(t(STR.online)):esc(t(STR.offline))}</span>
-      <button class="icon-btn" data-action="open-account-modal" title="${esc(t(STR.accessLog))}">🔑</button>
-      <button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button>
-    </div>
+    <div class="tagline-strip"><span class="dot">✦</span>${esc(t(SESSION_TAGLINE))}<span class="dot">✦</span></div>
   </div>`;
 }
 
@@ -663,6 +859,7 @@ function renderTabbar(){
     {id:'dashboard', view:'dashboard', icon:'📊', label:STR.dashboard},
     ...getAllSections().map(s=>({id:s.id, view:'list', sectionId:s.id, icon:s.icon, label:s.name})),
     {id:'monthly', view:'monthly', icon:'🗓️', label:STR.monthly},
+    {id:'files', view:'files', icon:'📁', label:STR.filesTab},
     ...(isAdmin() ? [{id:'builder', view:'builder', icon:'⚙️', label:STR.builder}] : [])
   ];
   return `<div class="tabbar">${items.map(it=>{
@@ -819,6 +1016,8 @@ function renderDashboard(){
 function renderList(sectionId){
   const section = getSection(sectionId);
   if(!section) return '';
+  const showPerRecordPdf = section.pdfMode !== 'daily';
+  const showDailyPdf = section.pdfMode !== 'perRecord';
   let records = getRecords(sectionId);
   if(state.search) records = records.filter(r=> JSON.stringify(r).toLowerCase().includes(state.search.toLowerCase()));
   if(state.dateFrom) records = records.filter(r=> r.date && r.date >= state.dateFrom);
@@ -839,6 +1038,7 @@ function renderList(sectionId){
           <div class="meta">${r.date?esc(r.date):''}</div>
         </div>
         <div class="actions">
+          ${showPerRecordPdf? `<button class="btn btn-outline btn-sm" data-action="share-record-pdf" data-section="${sectionId}" data-id="${r.id}" title="${esc(t(STR.sharePdf))}">📄</button>`:''}
           <button class="btn btn-outline btn-sm" data-action="edit-record" data-section="${sectionId}" data-id="${r.id}">✏️</button>
           <button class="btn btn-danger btn-sm" data-action="delete-record" data-section="${sectionId}" data-id="${r.id}">🗑️</button>
         </div>
@@ -858,6 +1058,7 @@ function renderList(sectionId){
       <input type="date" data-action="filter-to" value="${esc(state.dateTo)}">
       <button class="btn btn-outline btn-sm" data-action="export-csv" data-section="${sectionId}">${esc(t(STR.exportCsv))}</button>
       <button class="btn btn-outline btn-sm" data-action="export-xlsx" data-section="${sectionId}">${esc(t(STR.exportXlsx))}</button>
+      ${showDailyPdf? `<button class="btn btn-outline btn-sm" data-action="share-daily-pdf" data-section="${sectionId}">${esc(t(STR.dailyReportPdf))}</button>`:''}
     </div>
     ${rows || `<div class="empty-state"><div class="ico">📭</div>${esc(t(STR.noRecords))}</div>`}
   </div>`;
@@ -900,7 +1101,7 @@ function renderField(f, record){
     return `<div class="field${full}">${label}<input type="text" data-field="${f.key}" value="${esc(val||'')}"></div>`;
   }
   if(f.type==='number'){
-    return `<div class="field${full}">${label}<input type="number" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+    return `<div class="field${full}">${label}<input type="number" min="0" step="any" data-field="${f.key}" value="${esc(val!=null?val:'')}"></div>`;
   }
   if(f.type==='date'){
     return `<div class="field${full}">${label}<input type="date" data-field="${f.key}" value="${esc(val||'')}"></div>`;
@@ -954,7 +1155,8 @@ function renderField(f, record){
         if(sf.type==='textarea') return `<div class="field" style="grid-column:1/-1">${subLabel}<textarea data-field="${f.key}.${idx}.${sf.key}">${esc(sval||'')}</textarea></div>`;
         if(sf.type==='unit') return `<div class="field">${subLabel}<input type="text" list="unitOptionsList" data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval||'')}"></div>`;
         const inputType = sf.type==='number'?'number':(sf.type==='date'?'date':'text');
-        return `<div class="field">${subLabel}<input type="${inputType}" data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval||'')}"></div>`;
+        const extraAttrs = sf.type==='number' ? ' min="0" step="any"' : '';
+        return `<div class="field">${subLabel}<input type="${inputType}"${extraAttrs} data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval!=null?sval:'')}"></div>`;
       }).join('');
       const imageHtml = imageSubFields.map(sf=> renderImageField(`${f.key}.${idx}.${sf.key}`, item[sf.key], `<label>${esc(t(sf.label))}</label>`)).join('');
       return `<div class="group-item"><span class="chip">#${idx+1}</span>
@@ -985,6 +1187,7 @@ async function hydrateAllImages(){
   const imgs = document.querySelectorAll('img[data-imgid]');
   for(const img of imgs){
     const id = img.getAttribute('data-imgid');
+    if(/^https?:\/\//.test(id)){ img.src = id; continue; }
     const url = await getImage(id);
     if(url) img.src = url;
   }
@@ -1001,6 +1204,35 @@ function updateComputedDisplays(section){
     let val; try{ val = f.compute(state.currentRecord); }catch(e){ val=null; }
     el.textContent = (val==null||isNaN(val)) ? '—' : val.toFixed(2)+'%';
   });
+}
+
+/* ===================== Files Library (local device) ===================== */
+let FILES_CACHE = [];
+async function refreshFilesCache(){
+  const list = await getExportedFiles();
+  FILES_CACHE = list.sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  if(state.view==='files') render();
+}
+function renderFilesView(){
+  const kindIcon = {pdf:'📄', xlsx:'📊', csv:'📋'};
+  const rows = FILES_CACHE.map(f=>`
+    <div class="record-card">
+      <div class="top">
+        <div><div class="main">${kindIcon[f.kind]||'📁'} ${esc(f.filename)}</div><div class="meta">${f.createdAt? new Date(f.createdAt).toLocaleString(LANG==='ar'?'ar-EG':'en-GB'):''}</div></div>
+      </div>
+      <div class="actions" style="margin-top:8px;flex-wrap:wrap;">
+        ${f.kind==='pdf' ? `<button class="btn btn-outline btn-sm" data-action="view-stored-file" data-id="${f.id}">👁️ ${esc(t(STR.viewFile))}</button>`:''}
+        <button class="btn btn-outline btn-sm" data-action="share-stored-file" data-id="${f.id}">📤 ${esc(t(STR.shareFile))}</button>
+        <button class="btn btn-outline btn-sm" data-action="download-stored-file" data-id="${f.id}">⬇️ ${esc(t(STR.downloadAgain))}</button>
+        <button class="btn btn-danger btn-sm" data-action="delete-stored-file" data-id="${f.id}">🗑️</button>
+      </div>
+    </div>`).join('');
+  return `
+  <div class="card">
+    <div class="section-title"><h2>📁 ${esc(t(STR.filesTab))}</h2></div>
+    <div class="hint" style="margin-bottom:10px;">${esc(t(STR.filesHint))}</div>
+    ${rows || `<div class="empty-state"><div class="ico">📭</div>${esc(t(STR.noRecords))}</div>`}
+  </div>`;
 }
 
 /* ===================== Monthly Report ===================== */
@@ -1027,6 +1259,7 @@ function renderMonthly(){
       <td>
         <button class="btn btn-outline btn-sm" data-action="export-csv-month" data-section="${s.section.id}">CSV</button>
         <button class="btn btn-outline btn-sm" data-action="export-xlsx-month" data-section="${s.section.id}">Excel</button>
+        <button class="btn btn-outline btn-sm" data-action="export-pdf-month" data-section="${s.section.id}">PDF</button>
       </td>
     </tr>`).join('');
 
@@ -1054,8 +1287,11 @@ function renderAdminPanel(){
   const rows = users.map(u=>`
     <div class="record-card">
       <div class="top">
-        <div><div class="main">${esc(u.name)}</div><div class="meta">${esc(u.role||'')} ${u.biometricCredId?'· 🔒':''}</div></div>
-        <div class="actions"><button class="btn btn-danger btn-sm" data-action="revoke-user" data-id="${u.id}">${esc(t(STR.revokeUser))}</button></div>
+        <div><div class="main">${esc(u.name)} ${u.isAdmin?'👑':''}</div><div class="meta">${esc(u.role||'')} ${u.biometricCredId?'· 🔒':''} ${u.isAdmin?'· '+esc(t(STR.roleAdmin)):''}</div></div>
+        <div class="actions">
+          <button class="btn ${u.isAdmin?'btn-outline':'btn-success'} btn-sm" data-action="toggle-user-admin" data-id="${u.id}">${u.isAdmin? esc(t(STR.removeAdmin)) : esc(t(STR.makeAdmin))}</button>
+          <button class="btn btn-danger btn-sm" data-action="revoke-user" data-id="${u.id}">${esc(t(STR.revokeUser))}</button>
+        </div>
       </div>
     </div>`).join('');
   return `
@@ -1067,10 +1303,21 @@ function renderAdminPanel(){
     </div>
     <div class="field" style="margin-bottom:12px;">
       <label>${esc(t(STR.masterCodeLabel))}</label>
-      <input type="text" id="masterCodeInput" value="${esc(getMasterCode())}">
+      <input type="text" id="masterCodeInput" value="${esc(state.formTemp.masterCodeInput!=null ? state.formTemp.masterCodeInput : getMasterCode())}">
       <div class="hint">${esc(t(STR.masterCodeHint))}</div>
       <button class="btn btn-primary btn-sm" style="margin-top:8px;" data-action="save-master-code">${esc(t(STR.saveCode))}</button>
     </div>
+    ${RESET_REQUESTS_CACHE.list.length ? `
+    <div class="field" style="margin-bottom:12px;">
+      <label>🔓 ${esc(t(STR.pendingResetRequests))}</label>
+      ${RESET_REQUESTS_CACHE.list.map(r=>`
+        <div class="record-card">
+          <div class="top">
+            <div><div class="main">${esc(r.name)}</div><div class="meta">${r.time? new Date(r.time).toLocaleString(LANG==='ar'?'ar-EG':'en-GB') : ''}</div></div>
+            <div class="actions"><button class="btn btn-primary btn-sm" data-action="open-reset-modal" data-userid="${r.userId}" data-reqid="${r.id}" data-name="${esc(r.name)}">${esc(t(STR.resetPasswordAction))}</button></div>
+          </div>
+        </div>`).join('')}
+    </div>` : ''}
     <div class="desc">${esc(t(STR.registeredUsers))}</div>
     ${rows || `<div class="empty-state">${esc(t(STR.noUsers))}</div>`}
   </div>`;
@@ -1078,7 +1325,7 @@ function renderAdminPanel(){
 
 function renderBuilder(){
   if(!isAdmin()){
-    return `<div class="card"><div class="empty-state"><div class="ico">🔒</div>${esc(t(STR.adminOnlyNotice))}</div></div>`;
+    return `<div class="card"><div class="empty-state">🔒 ${esc(t(STR.adminOnlyNotice))}</div></div>`;
   }
   const customs = getCustomSections();
   const existingRows = customs.map(s=>`
@@ -1089,9 +1336,7 @@ function renderBuilder(){
       </div>
     </div>`).join('');
 
-  const builtinRows = BUILTIN_SECTIONS.map(s=>`<div class="record-card"><div class="top"><div><div class="main">${s.icon} ${esc(t(s.name))}</div><div class="meta">${esc(t(STR.builtin))}</div></div></div></div>`).join('');
-
-  const fieldRows = state.builderFields.map((f,idx)=>`
+  const builderFieldRows = (target)=> state.builderFields.map((f,idx)=>`
     <div class="field-row-builder">
       <input type="text" placeholder="${esc(t(STR.fieldLabelAr))}" data-builder-field="labelAr" data-index="${idx}" value="${esc(f.labelAr||'')}">
       <input type="text" placeholder="${esc(t(STR.fieldLabelEn))}" data-builder-field="labelEn" data-index="${idx}" value="${esc(f.labelEn||'')}">
@@ -1102,11 +1347,39 @@ function renderBuilder(){
       ${f.type==='select' ? `<input type="text" style="grid-column:1/-1" placeholder="${esc(t(STR.optionsCsv))}" data-builder-field="options" data-index="${idx}" value="${esc(f.optionsCsv||'')}">` : ''}
     </div>`).join('');
 
+  const builtinRows = BUILTIN_SECTIONS.map(s=>{
+    const extraFields = BUILTIN_EXTENSIONS_CACHE.map[s.id] || [];
+    const isEditing = state.builtinFieldTarget === s.id;
+    const extraRows = extraFields.map(f=>`
+      <div class="record-card">
+        <div class="top">
+          <div><div class="main">${esc(t(f.label))}</div><div class="meta">${f.type} · ${esc(t(STR.customFieldTag))}</div></div>
+          <div class="actions"><button class="btn btn-danger btn-sm" data-action="remove-builtin-field" data-section="${s.id}" data-fieldkey="${esc(f.key)}">🗑️</button></div>
+        </div>
+      </div>`).join('');
+    return `<div class="record-card">
+      <div class="top">
+        <div><div class="main">${s.icon} ${esc(t(s.name))}</div><div class="meta">${esc(t(STR.builtin))} · ${s.fields.length} ${LANG==='ar'?'حقل':'fields'}</div></div>
+        <div class="actions"><button class="btn btn-outline btn-sm" data-action="toggle-builtin-editor" data-section="${s.id}">${isEditing? esc(t(STR.cancel)) : '➕ '+esc(t(STR.addField))}</button></div>
+      </div>
+      ${extraFields.length? `<div style="margin-top:8px;">${extraRows}</div>`:''}
+      ${isEditing? `
+        <div class="group-block" style="margin-top:10px;">
+          <div class="hint" style="margin-bottom:8px;">${esc(t(STR.addFieldToSectionHint))}</div>
+          ${builderFieldRows(s.id)}
+          <button class="btn btn-outline btn-sm" data-action="add-builder-field">${esc(t(STR.addField))}</button>
+          <button class="btn btn-primary btn-sm btn-block" style="margin-top:8px;" data-action="save-builtin-fields" data-section="${s.id}">${esc(t(STR.saveSection))}</button>
+        </div>`:''}
+    </div>`;
+  }).join('');
+
+  const fieldRows = builderFieldRows('newSection');
+
   return `
   ${isAdmin() ? renderAdminPanel() : ''}
   <div class="card">
     <h2>⚙️ ${esc(t(STR.builder))}</h2>
-    <div class="desc">${LANG==='ar'?'الأقسام الأساسية':'Built-in sections'}</div>
+    <div class="desc">${LANG==='ar'?'الأقسام الأساسية (تقدر تضيف حقول جديدة لأي قسم منها)':'Built-in sections (you can add new fields to any of them)'}</div>
     ${builtinRows}
   </div>
   <div class="card">
@@ -1117,9 +1390,9 @@ function renderBuilder(){
     <h2>➕ ${esc(t(STR.newSection))}</h2>
     <div class="hint" style="margin-bottom:10px;">${LANG==='ar'?'يُضاف حقل "التاريخ" تلقائياً لدعم التقرير الشهري.':'A "Date" field is added automatically to support the monthly report.'}</div>
     <div class="form-grid">
-      <div class="field"><label>${esc(t(STR.sectionNameAr))}</label><input type="text" id="newSecNameAr"></div>
-      <div class="field"><label>${esc(t(STR.sectionNameEn))}</label><input type="text" id="newSecNameEn"></div>
-      <div class="field"><label>${esc(t(STR.icon))}</label><input type="text" id="newSecIcon" value="📋"></div>
+      <div class="field"><label>${esc(t(STR.sectionNameAr))}</label><input type="text" id="newSecNameAr" value="${esc(state.formTemp.newSecNameAr||'')}"></div>
+      <div class="field"><label>${esc(t(STR.sectionNameEn))}</label><input type="text" id="newSecNameEn" value="${esc(state.formTemp.newSecNameEn||'')}"></div>
+      <div class="field"><label>${esc(t(STR.icon))}</label><input type="text" id="newSecIcon" value="${esc(state.formTemp.newSecIcon!=null?state.formTemp.newSecIcon:'📋')}"></div>
     </div>
     <div style="margin-top:12px;">
       <b>${esc(t(STR.fields))}</b>
@@ -1136,10 +1409,16 @@ function flattenRecordForExport(section, r){
   section.fields.forEach(f=>{
     if(f.type==='group'){
       const arr = r[f.key]||[];
-      out[t(f.label)] = arr.map((item,i)=> `#${i+1}: ` + f.fields.map(sf=> sf.type==='image' ? `${t(sf.label)}=${(item[sf.key]||[]).length} ${LANG==='ar'?'صورة':'photo(s)'}` : `${t(sf.label)}=${item[sf.key]||''}`).join(', ')).join(' | ');
+      out[t(f.label)] = arr.map((item,i)=>{
+        const lines = f.fields.map(sf=>{
+          const val = sf.type==='image' ? `${(item[sf.key]||[]).length} ${LANG==='ar'?'صورة':'photo(s)'}` : (item[sf.key]!=null ? item[sf.key] : '');
+          return `${t(sf.label)}: ${val}`;
+        });
+        return `#${i+1}\n` + lines.join('\n');
+      }).join('\n\n');
     } else if(f.type==='multiDate'){
       const arr = r[f.key]||[];
-      out[t(f.label)] = arr.map(item=> `${item.prod||''}→${item.exp||''}`).join(' | ');
+      out[t(f.label)] = arr.map(item=> `${item.prod||''} → ${item.exp||''}`).join('\n');
     } else if(f.type==='image'){
       out[t(f.label)] = (r[f.key]||[]).length + ' ' + (LANG==='ar'?'صورة':'photo(s)');
     } else if(f.type==='select'){
@@ -1153,6 +1432,18 @@ function flattenRecordForExport(section, r){
     }
   });
   return out;
+}
+function computeColumnWidths(flatRows){
+  if(!flatRows.length) return [];
+  const headers = Object.keys(flatRows[0]);
+  return headers.map(h=>{
+    let maxLen = h.length;
+    flatRows.forEach(row=>{
+      const v = row[h]==null ? '' : String(row[h]);
+      v.split('\n').forEach(line=>{ if(line.length>maxLen) maxLen = line.length; });
+    });
+    return { wch: Math.min(Math.max(maxLen+2, 14), 45) };
+  });
 }
 
 function toCSV(rowsObjArr){
@@ -1177,7 +1468,9 @@ function exportSectionCSV(sectionId, filterFn){
   if(filterFn) records = records.filter(filterFn);
   const flat = records.map(r=> flattenRecordForExport(section, r));
   const csv = toCSV(flat);
-  downloadFile(`${section.id}_${todayISO()}.csv`, csv, 'text/csv;charset=utf-8;');
+  const filename = `${section.id}_${todayISO()}.csv`;
+  downloadFile(filename, csv, 'text/csv;charset=utf-8;');
+  storeExportedFile(filename, 'csv', textToDataUrl(csv, 'text/csv;charset=utf-8'));
   showToast(t(STR.savedOk));
 }
 
@@ -1185,14 +1478,11 @@ let _sheetJsLoading = null;
 function loadSheetJS(){
   if(window.XLSX) return Promise.resolve(true);
   if(_sheetJsLoading) return _sheetJsLoading;
-  _sheetJsLoading = new Promise((resolve)=>{
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload = ()=> resolve(true);
-    s.onerror = ()=> resolve(false);
-    document.head.appendChild(s);
-    setTimeout(()=>resolve(!!window.XLSX), 6000);
-  });
+  _sheetJsLoading = loadScriptWithFallback([
+    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+  ]).then(()=> !!window.XLSX);
   return _sheetJsLoading;
 }
 
@@ -1204,9 +1494,13 @@ async function exportSectionXLSX(sectionId, filterFn){
   const ok = await loadSheetJS();
   if(!ok || !window.XLSX){ exportSectionCSV(sectionId, filterFn); showToast(t(STR.xlsxOfflineFallback)); return; }
   const ws = XLSX.utils.json_to_sheet(flat);
+  ws['!cols'] = computeColumnWidths(flat);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, section.id.slice(0,28));
-  XLSX.writeFile(wb, `${section.id}_${todayISO()}.xlsx`);
+  const filename = `${section.id}_${todayISO()}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  const base64 = XLSX.write(wb, {type:'base64', bookType:'xlsx'});
+  storeExportedFile(filename, 'xlsx', 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+base64);
   showToast(t(STR.savedOk));
 }
 
@@ -1225,10 +1519,249 @@ async function exportCombinedMonth(){
     const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
     const flat = recs.map(r=> flattenRecordForExport(s, r));
     const ws = XLSX.utils.json_to_sheet(flat.length?flat:[{ }]);
+    ws['!cols'] = computeColumnWidths(flat);
     XLSX.utils.book_append_sheet(wb, ws, s.id.slice(0,28));
   });
-  XLSX.writeFile(wb, `QA_Monthly_${prefix}.xlsx`);
+  const filename = `QA_Monthly_${prefix}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  const base64 = XLSX.write(wb, {type:'base64', bookType:'xlsx'});
+  storeExportedFile(filename, 'xlsx', 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+base64);
   showToast(t(STR.savedOk));
+}
+
+/* ===================== PDF export (native browser print, no external dependencies) ===================== */
+function loadScriptWithFallback(urls){
+  return new Promise((resolve)=>{
+    let i = 0;
+    function tryNext(){
+      if(i >= urls.length){ resolve(false); return; }
+      const s = document.createElement('script');
+      s.src = urls[i];
+      let settled = false;
+      const timeout = setTimeout(()=>{ if(!settled){ settled=true; s.remove(); i++; tryNext(); } }, 6000);
+      s.onload = ()=>{ if(!settled){ settled=true; clearTimeout(timeout); resolve(true); } };
+      s.onerror = ()=>{ if(!settled){ settled=true; clearTimeout(timeout); s.remove(); i++; tryNext(); } };
+      document.head.appendChild(s);
+    }
+    tryNext();
+  });
+}
+
+function pdfFieldValue(f, record){
+  const val = record[f.key];
+  if(f.type==='select'){ const opt=(f.options||[]).find(o=>o.value===val); return opt? esc(t(opt.label)) : (val? esc(val):'—'); }
+  if(f.type==='computed'){ let v; try{ v=f.compute(record); }catch(e){ v=null; } return (v==null||isNaN(v))?'—':(v.toFixed(2)+'%'); }
+  if(f.type==='multiDate'){ const arr=val||[]; return arr.length? arr.map(i=>`${esc(i.prod||'')} → ${esc(i.exp||'')}`).join('<br>') : '—'; }
+  if(f.type==='textarea') return val? esc(val).replace(/\n/g,'<br>') : '—';
+  return (val==null || val==='') ? '—' : esc(val);
+}
+
+function collectImageIdsFromRecord(section, record){
+  let ids = [];
+  section.fields.forEach(f=>{
+    if(f.type==='image'){ ids = ids.concat(record[f.key]||[]); }
+    if(f.type==='group'){
+      (record[f.key]||[]).forEach(item=>{
+        f.fields.forEach(sf=>{ if(sf.type==='image'){ ids = ids.concat(item[sf.key]||[]); } });
+      });
+    }
+  });
+  return ids;
+}
+function collectImagePathsFromRecord(section, record){
+  const results = [];
+  section.fields.forEach(f=>{
+    if(f.type==='image'){
+      (record[f.key]||[]).forEach((id, idx)=> results.push({path:`${f.key}.${idx}`, id}));
+    }
+    if(f.type==='group'){
+      (record[f.key]||[]).forEach((item, gi)=>{
+        f.fields.forEach(sf=>{
+          if(sf.type==='image'){
+            (item[sf.key]||[]).forEach((id, idx)=> results.push({path:`${f.key}.${gi}.${sf.key}.${idx}`, id}));
+          }
+        });
+      });
+    }
+  });
+  return results;
+}
+let _retryingUploads = false;
+async function retryPendingImageUploads(){
+  if(_retryingUploads || !navigator.onLine) return;
+  _retryingUploads = true;
+  try{
+    const sections = getAllSections();
+    for(const section of sections){
+      const records = getRecords(section.id).slice();
+      for(const record of records){
+        const pending = collectImagePathsFromRecord(section, record).filter(p=> !/^https?:\/\//.test(p.id));
+        if(!pending.length) continue;
+        let changed = false;
+        for(const p of pending){
+          const dataUrl = await getImage(p.id);
+          if(!dataUrl) continue;
+          const url = await uploadToImgBB(dataUrl);
+          if(url){ setPath(record, p.path, url); changed = true; }
+        }
+        if(changed) await saveRecordRemote(section.id, record).catch(()=>{});
+      }
+    }
+  } finally { _retryingUploads = false; }
+}
+async function buildImageMapForRecords(section, records){
+  const allIds = new Set();
+  records.forEach(r=> collectImageIdsFromRecord(section, r).forEach(id=>allIds.add(id)));
+  const map = {};
+  for(const id of allIds){
+    map[id] = /^https?:\/\//.test(id) ? id : await getImage(id);
+  }
+  return map;
+}
+
+function renderRecordPrintHtml(section, record, imageMap){
+  const plainFields = section.fields.filter(f=>f.type!=='group' && f.type!=='image');
+  const rows = plainFields.map(f=> `<tr><td class="pf-label">${esc(t(f.label))}</td><td class="pf-value">${pdfFieldValue(f, record)}</td></tr>`).join('');
+
+  const topImageFields = section.fields.filter(f=>f.type==='image');
+  const topImages = topImageFields.map(f=>{
+    const ids = record[f.key]||[];
+    if(!ids.length) return '';
+    const imgs = ids.map(id=> imageMap[id] ? `<img crossorigin="anonymous" src="${imageMap[id]}">` : '').join('');
+    return `<div class="pf-imgblock"><div class="pf-imglabel">${esc(t(f.label))}</div><div class="pf-imggrid">${imgs}</div></div>`;
+  }).join('');
+
+  const groupFields = section.fields.filter(f=>f.type==='group');
+  const groups = groupFields.map(f=>{
+    const items = record[f.key]||[];
+    if(!items.length) return '';
+    const normalSub = f.fields.filter(sf=>sf.type!=='image');
+    const imageSub = f.fields.filter(sf=>sf.type==='image');
+    const itemsHtml = items.map((item,i)=>{
+      const subRows = normalSub.map(sf=>{
+        let val = item[sf.key];
+        if(sf.type==='select'){ const opt=(sf.options||[]).find(o=>o.value===val); val = opt? t(opt.label): val; }
+        return `<tr><td class="pf-label">${esc(t(sf.label))}</td><td class="pf-value">${val!=null && val!==''? esc(val):'—'}</td></tr>`;
+      }).join('');
+      const subImages = imageSub.map(sf=>{
+        const ids = item[sf.key]||[];
+        if(!ids.length) return '';
+        const imgs = ids.map(id=> imageMap[id]? `<img crossorigin="anonymous" src="${imageMap[id]}">`:'').join('');
+        return `<div class="pf-imgblock"><div class="pf-imglabel">${esc(t(sf.label))}</div><div class="pf-imggrid">${imgs}</div></div>`;
+      }).join('');
+      return `<div class="pf-groupitem"><div class="pf-groupnum">#${i+1}</div><table class="pf-table">${subRows}</table>${subImages}</div>`;
+    }).join('');
+    return `<div class="pf-group"><div class="pf-grouptitle">${esc(t(f.label))}</div>${itemsHtml}</div>`;
+  }).join('');
+
+  return `<div class="pf-record">
+    <div class="pf-recordheader">${section.icon} ${esc(t(section.name))} — ${esc(record.date||'')}</div>
+    <table class="pf-table">${rows}</table>
+    ${topImages}
+    ${groups}
+  </div>`;
+}
+
+function buildReportHtml(section, records, reportTitle, imageMap){
+  const dir = LANG==='ar' ? 'rtl':'ltr';
+  const bodyBlocks = records.map(r=> renderRecordPrintHtml(section, r, imageMap)).join('');
+  return `<!DOCTYPE html>
+<html dir="${dir}" lang="${LANG}">
+<head>
+<meta charset="UTF-8">
+<title>${esc(reportTitle)}</title>
+<style>
+  *{box-sizing:border-box;}
+  body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#152232;padding:16px;margin:0;background:#fff;}
+  .pf-cover{background:linear-gradient(135deg,#0B2A4A,#0E355C);color:#fff;padding:22px;border-radius:10px;margin-bottom:18px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .pf-cover h1{margin:0 0 6px;font-size:21px;}
+  .pf-cover .sub{font-size:12.5px;opacity:.85;}
+  .pf-record{border:1px solid #DCE3EC;border-radius:10px;padding:16px;margin-bottom:16px;background:#fff;page-break-inside:avoid;}
+  .pf-recordheader{font-size:15px;font-weight:800;color:#0B2A4A;margin-bottom:10px;border-bottom:2px solid #2E7BD6;padding-bottom:6px;}
+  .pf-table{width:100%;border-collapse:collapse;margin-bottom:8px;}
+  .pf-table td{padding:6px 8px;border-bottom:1px solid #EEF2F7;font-size:12px;vertical-align:top;}
+  .pf-label{color:#66768C;font-weight:700;width:38%;}
+  .pf-value{color:#152232;}
+  .pf-imgblock{margin:8px 0;}
+  .pf-imglabel{font-size:11.5px;font-weight:700;color:#123A5E;margin-bottom:4px;}
+  .pf-imggrid{display:flex;flex-wrap:wrap;gap:8px;}
+  .pf-imggrid img{width:150px;height:150px;object-fit:cover;border-radius:6px;border:1px solid #DCE3EC;}
+  .pf-group{margin:10px 0;border-top:1px dashed #DCE3EC;padding-top:8px;}
+  .pf-grouptitle{font-weight:800;color:#0B2A4A;font-size:12.5px;margin-bottom:6px;}
+  .pf-groupitem{background:#FAFBFD;border:1px solid #EEF2F7;border-radius:8px;padding:8px;margin-bottom:8px;}
+  .pf-groupnum{font-size:11px;font-weight:700;color:#2E7BD6;margin-bottom:4px;}
+  @media print{ body{padding:0;} }
+</style>
+</head>
+<body>
+  <div class="pf-cover">
+    <h1>${esc(reportTitle)}</h1>
+    <div class="sub">${esc(t(STR.appName))} · ${new Date().toLocaleString(LANG==='ar'?'ar-EG':'en-GB')}</div>
+  </div>
+  ${bodyBlocks}
+</body>
+</html>`;
+}
+
+function openPrintableReport(htmlDocString){
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){ showToast(t(STR.popupBlocked)); return false; }
+  printWindow.document.open();
+  printWindow.document.write(htmlDocString);
+  printWindow.document.close();
+  const triggerPrint = ()=>{ try{ printWindow.focus(); printWindow.print(); }catch(e){} };
+  if(printWindow.document.readyState === 'complete'){ setTimeout(triggerPrint, 300); }
+  else { printWindow.addEventListener('load', ()=> setTimeout(triggerPrint, 300)); }
+  return true;
+}
+
+async function shareRecordAsPDF(sectionId, recordId){
+  const section = getSection(sectionId);
+  const record = getRecords(sectionId).find(r=>r.id===recordId);
+  if(!section || !record) return;
+  showToast(t(STR.generatingPdf));
+  try{
+    const imageMap = await buildImageMapForRecords(section, [record]);
+    const title = `${t(section.name)} — ${record.date||''}`;
+    const html = buildReportHtml(section, [record], title, imageMap);
+    openPrintableReport(html);
+  }catch(err){
+    console.error('PDF generation failed', err);
+    showToast(t(STR.pdfLoadFailed));
+  }
+}
+
+async function shareDailyPDF(sectionId, dateStr){
+  const section = getSection(sectionId);
+  const records = getRecords(sectionId).filter(r=>r.date===dateStr);
+  if(!records.length){ showToast(t(STR.noRecords)); return; }
+  showToast(t(STR.generatingPdf));
+  try{
+    const imageMap = await buildImageMapForRecords(section, records);
+    const title = `${t(section.name)} — ${LANG==='ar'?'تقرير يوم':'Daily report'} ${dateStr}`;
+    const html = buildReportHtml(section, records, title, imageMap);
+    openPrintableReport(html);
+  }catch(err){
+    console.error('PDF generation failed', err);
+    showToast(t(STR.pdfLoadFailed));
+  }
+}
+
+async function shareMonthlyPDF(sectionId, year, month){
+  const section = getSection(sectionId);
+  const prefix = `${year}-${String(month).padStart(2,'0')}`;
+  const records = getRecords(sectionId).filter(r=>r.date && r.date.startsWith(prefix));
+  if(!records.length){ showToast(t(STR.noRecords)); return; }
+  showToast(t(STR.generatingPdf));
+  try{
+    const imageMap = await buildImageMapForRecords(section, records);
+    const title = `${t(section.name)} — ${LANG==='ar'?'تقرير شهر':'Monthly report'} ${month}/${year}`;
+    const html = buildReportHtml(section, records, title, imageMap);
+    openPrintableReport(html);
+  }catch(err){
+    console.error('PDF generation failed', err);
+    showToast(t(STR.pdfLoadFailed));
+  }
 }
 
 /* ===================== Toast ===================== */
@@ -1247,17 +1780,29 @@ function renderAuthGate(){
   else if(s==='register') inner = renderRegisterScreen();
   else if(s==='adminSetup') inner = renderAdminSetupScreen();
   else if(s==='adminLogin') inner = renderAdminLoginScreen();
+  else if(s==='findAccount') inner = renderFindAccountScreen();
   else if(s==='lock') inner = renderLockScreen();
   return `
   <div class="app-header">
-    <div class="brand"><div class="logo">🛡️</div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
-    <div class="header-actions"><button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button></div>
+    <div class="header-top">
+      <div class="brand"><div class="logo">🛡️</div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
+      <div class="header-actions"><button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button></div>
+    </div>
+    <div class="tagline-strip"><span class="dot">✦</span>${esc(t(SESSION_TAGLINE))}<span class="dot">✦</span></div>
   </div>
   <div class="container"><div class="auth-screen"><div class="auth-box">${inner}</div></div></div>`;
 }
 
+function getDeviceKnownUserIds(){ return Store.get('qa_deviceKnownUsers', []); }
+function markUserKnownOnThisDevice(userId){
+  if(!userId || userId==='__admin__') return;
+  const known = getDeviceKnownUserIds();
+  if(!known.includes(userId)){ known.push(userId); Store.set('qa_deviceKnownUsers', known); }
+}
+
 function renderWelcomeScreen(){
-  const users = getUsers();
+  const knownIds = getDeviceKnownUserIds();
+  const users = getUsers().filter(u=>knownIds.includes(u.id));
   const chips = users.map(u=>`<button class="user-chip" data-action="auth-pick-user" data-id="${u.id}"><span><span class="nm">${esc(u.name)}</span><br><span class="rl">${esc(u.role||'')}</span></span><span>›</span></button>`).join('');
   return `
   <div class="auth-logo">🛡️</div>
@@ -1265,17 +1810,27 @@ function renderWelcomeScreen(){
   <div class="auth-sub">${esc(t(STR.welcomeSub))}</div>
   ${users.length? `<div class="hint" style="margin-bottom:8px;">${esc(t(STR.whoAreYou))}</div>${chips}`:''}
   <div class="auth-divider">${LANG==='ar'?'أو':'or'}</div>
+  <button class="btn btn-outline btn-block" style="margin-bottom:8px;" data-action="auth-goto" data-screen="findAccount">${esc(t(STR.existingUserNewDevice))}</button>
   <button class="btn btn-primary btn-block" data-action="auth-goto" data-screen="accessCode">${esc(t(STR.newUserBtn))}</button>
   <div style="text-align:center;margin-top:16px;">
     <button class="link-btn" data-action="auth-goto-admin">${esc(t(STR.adminEntry))}</button>
   </div>`;
 }
 
+function renderFindAccountScreen(){
+  return `
+  <div class="auth-title">🔎 ${esc(t(STR.findAccountTitle))}</div>
+  <div class="auth-sub">${esc(t(STR.findAccountSub))}</div>
+  <div class="field"><label>${esc(t(STR.name))}</label><input type="text" id="findAccountName" autocomplete="off" value="${esc(state.formTemp.findAccountName||'')}"></div>
+  <button class="btn btn-primary btn-block" style="margin-top:14px;" data-action="auth-find-account">${esc(t(STR.continue))}</button>
+  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
+}
+
 function renderAccessCodeScreen(){
   return `
   <div class="auth-title">🔑 ${esc(t(STR.accessCodeTitle))}</div>
   <div class="auth-sub">${esc(t(STR.accessCodeSub))}</div>
-  <div class="field"><label>${esc(t(STR.accessCodeLabel))}</label><input type="text" id="accessCodeInput" autocomplete="off"></div>
+  <div class="field"><label>${esc(t(STR.accessCodeLabel))}</label><input type="text" id="accessCodeInput" autocomplete="off" value="${esc(state.formTemp.accessCodeInput||'')}"></div>
   <button class="btn btn-primary btn-block" style="margin-top:14px;" data-action="auth-submit-accesscode">${esc(t(STR.continue))}</button>
   <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
 }
@@ -1285,12 +1840,12 @@ function renderRegisterScreen(){
   return `
   <div class="auth-title">📝 ${esc(t(STR.registerTitle))}</div>
   <div class="auth-sub">${esc(t(STR.registerSub))}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.name))}</label><input type="text" id="regName"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.name))}</label><input type="text" id="regName" value="${esc(state.formTemp.regName||'')}"></div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.role))}</label>
-    <select id="regRole">${ROLE_OPTIONS.map(r=>`<option value="${esc(r.v)}">${esc(t(r.l))}</option>`).join('')}</select>
+    <select id="regRole">${ROLE_OPTIONS.map(r=>`<option value="${esc(r.v)}" ${(state.formTemp.regRole||ROLE_OPTIONS[0].v)===r.v?'selected':''}>${esc(t(r.l))}</option>`).join('')}</select>
   </div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.choosePassword))}</label><input type="password" id="regPass"></div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="regPass2"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.choosePassword))}</label><input type="password" id="regPass" value="${esc(state.formTemp.regPass||'')}"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="regPass2" value="${esc(state.formTemp.regPass2||'')}"></div>
   <button class="btn btn-outline btn-block" style="margin-bottom:6px;" data-action="auth-register-biometric">${bio? esc(t(STR.biometricEnabled)) : esc(t(STR.enableBiometric))}</button>
   <button class="btn btn-primary btn-block" style="margin-top:8px;" data-action="auth-submit-register">${esc(t(STR.createAccount))}</button>
   <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
@@ -1300,8 +1855,8 @@ function renderAdminSetupScreen(){
   return `
   <div class="auth-title">🛡️ ${esc(t(STR.adminSetupTitle))}</div>
   <div class="auth-sub">${esc(t(STR.adminSetupSub))}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminPass"></div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="adminPass2"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminPass" value="${esc(state.formTemp.adminPass||'')}"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="adminPass2" value="${esc(state.formTemp.adminPass2||'')}"></div>
   <button class="btn btn-primary btn-block" style="margin-top:8px;" data-action="auth-submit-adminsetup">${esc(t(STR.saveAndEnter))}</button>
   <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
 }
@@ -1309,7 +1864,7 @@ function renderAdminSetupScreen(){
 function renderAdminLoginScreen(){
   return `
   <div class="auth-title">🛡️ ${esc(t(STR.adminLoginTitle))}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminLoginPass"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminLoginPass" value="${esc(state.formTemp.adminLoginPass||'')}"></div>
   <button class="btn btn-primary btn-block" data-action="auth-submit-adminlogin">${esc(t(STR.unlockBtn))}</button>
   <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
 }
@@ -1323,10 +1878,11 @@ function renderLockScreen(){
   <div class="auth-logo">🔒</div>
   <div class="auth-title">${esc(t(STR.lockWelcomeBack))}</div>
   <div class="auth-sub">${esc(user.name)}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.enterPassword))}</label><input type="password" id="lockPass"></div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.enterPassword))}</label><input type="password" id="lockPass" value="${esc(state.formTemp.lockPass||'')}"></div>
   <button class="btn btn-primary btn-block" data-action="auth-unlock-password">${esc(t(STR.unlockBtn))}</button>
   ${user.biometricCredId? `<button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="auth-unlock-biometric">${esc(t(STR.unlockBiometricBtn))}</button>`:''}
-  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-switch">${esc(t(STR.switchAccount))}</button></div>`;
+  ${!isAdminTarget? `<div style="text-align:center;margin-top:12px;"><button class="link-btn" data-action="auth-request-reset">${esc(t(STR.forgotPassword))}</button></div>`:''}
+  <div style="text-align:center;margin-top:10px;"><button class="link-btn" data-action="auth-switch">${esc(t(STR.switchAccount))}</button></div>`;
 }
 
 function showAccountModal(){
@@ -1341,9 +1897,21 @@ function showAccountModal(){
   document.body.appendChild(overlay);
 }
 
+function showResetPasswordModal(userId, reqId, name){
+  const overlay = document.createElement('div'); overlay.className='modal-overlay';
+  overlay.innerHTML = `<div class="modal-box">
+    <h3>🔓 ${esc(t(STR.setNewPasswordTitle))} ${esc(name)}</h3>
+    <div class="field"><input type="text" id="newPassForUser" placeholder="${esc(t(STR.setNewPasswordPlaceholder))}"></div>
+    <button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="confirm-reset-password" data-userid="${userId}" data-reqid="${reqId}">${esc(t(STR.resetPasswordAction))}</button>
+    <button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="close-modal">${esc(t(STR.cancel))}</button>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
 /* ===================== Event handling ===================== */
 document.addEventListener('input', e=>{
   const el = e.target;
+  if(el.id){ state.formTemp[el.id] = el.value; }
   const path = el.getAttribute('data-field');
   if(path && state.currentRecord){
     setPath(state.currentRecord, path, el.value);
@@ -1362,6 +1930,7 @@ document.addEventListener('input', e=>{
 
 document.addEventListener('change', e=>{
   const el = e.target;
+  if(el.id){ state.formTemp[el.id] = el.value; }
   const path = el.getAttribute('data-field');
   if(path && el.tagName==='SELECT' && state.currentRecord){
     setPath(state.currentRecord, path, el.value);
@@ -1376,16 +1945,38 @@ document.addEventListener('change', e=>{
     const files = Array.from(el.files||[]);
     let remaining = files.length;
     if(!remaining) return;
+    const recordRef = state.currentRecord;
+    const sectionIdRef = state.viewSectionId;
     files.forEach(file=>{
       const reader = new FileReader();
       reader.onload = async ()=>{
-        const id = uid();
-        await saveImage(id, reader.result);
-        const arr = getPath(state.currentRecord, path) || [];
-        arr.push(id);
-        setPath(state.currentRecord, path, arr);
-        remaining--;
-        if(remaining===0) render();
+        try{
+          const tempId = uid();
+          await saveImage(tempId, reader.result);
+          const arr = getPath(recordRef, path) || [];
+          arr.push(tempId);
+          setPath(recordRef, path, arr);
+          remaining--;
+          if(remaining===0) render();
+
+          /* رفع في الخلفية لخدمة ImgBB عشان الصورة تظهر لكل الأفراد */
+          uploadToImgBB(reader.result).then(url=>{
+            if(!url) return;
+            const arr2 = getPath(recordRef, path) || [];
+            const idx = arr2.indexOf(tempId);
+            if(idx===-1) return;
+            arr2[idx] = url;
+            setPath(recordRef, path, arr2);
+            const imgEl = document.querySelector(`img[data-imgid="${tempId}"]`);
+            if(imgEl){ imgEl.src = url; imgEl.setAttribute('data-imgid', url); }
+            if(recordRef && recordRef.id){ saveRecordRemote(sectionIdRef, recordRef).catch(()=>{}); }
+          });
+        }catch(err){
+          console.warn('add-image failed', err);
+          showToast(t(STR.imageSaveFailed));
+          remaining--;
+          if(remaining===0) render();
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -1402,10 +1993,32 @@ document.addEventListener('click', e=>{
   const action = el.getAttribute('data-action');
 
   /* ---- Auth actions ---- */
-  if(action==='auth-goto'){ state.auth = {screen: el.getAttribute('data-screen')}; render(); return; }
+  if(action==='auth-goto'){
+    const screen = el.getAttribute('data-screen');
+    if(screen==='welcome') state.formTemp = {};
+    state.auth = {screen}; render(); return;
+  }
   if(action==='auth-goto-admin'){ state.auth = {screen: isAdminSetup() ? 'adminLogin' : 'adminSetup'}; render(); return; }
   if(action==='auth-pick-user'){ state.auth = {screen:'lock', targetUserId: el.getAttribute('data-id')}; render(); return; }
+  if(action==='auth-find-account'){
+    const name = (document.getElementById('findAccountName').value||'').trim();
+    if(!name){ showToast(t(STR.requiredMissing)); return; }
+    const found = getUsers().find(u=> (u.name||'').trim().toLowerCase() === name.toLowerCase());
+    if(!found){ showToast(t(STR.accountNotFound)); return; }
+    state.auth = {screen:'lock', targetUserId: found.id};
+    render();
+    return;
+  }
   if(action==='auth-switch'){ state.auth = {screen:'welcome'}; render(); return; }
+  if(action==='auth-request-reset'){
+    const targetId = state.auth.targetUserId;
+    const u = getUsers().find(x=>x.id===targetId);
+    if(!u) return;
+    qaCol('passwordResetRequests/items').doc(uid()).set({userId:u.id, name:u.name, time:new Date().toISOString()})
+      .then(()=> showToast(t(STR.resetRequestSent)))
+      .catch(err=> console.warn('reset request error', err));
+    return;
+  }
 
   if(action==='auth-submit-accesscode'){
     const val = (document.getElementById('accessCodeInput').value||'').trim();
@@ -1441,9 +2054,10 @@ document.addEventListener('click', e=>{
       const user = { id:uid(), name, role, passwordHash, biometricCredId: state.regTempBiometric||null, createdAt:new Date().toISOString() };
       await saveUserRemote(user);
       Store.set('qa_currentUserId', user.id);
+      markUserKnownOnThisDevice(user.id);
       pushAccessLog({name, role, time:new Date().toISOString(), type:'register'});
       sessionStorage.setItem('qa_unlocked','1');
-      state.regTempBiometric = null; state.auth = null; state.view='home';
+      state.regTempBiometric = null; state.auth = null; state.view='home'; state.formTemp = {};
       showToast(t(STR.savedOk)); render();
     })();
     return;
@@ -1460,7 +2074,7 @@ document.addEventListener('click', e=>{
       Store.set('qa_currentUserId', '__admin__');
       pushAccessLog({name:t(STR.roleAdmin), role:t(STR.roleAdmin), time:new Date().toISOString(), type:'admin-setup'});
       sessionStorage.setItem('qa_unlocked','1');
-      state.auth = null; state.view='home';
+      state.auth = null; state.view='home'; state.formTemp = {};
       showToast(t(STR.savedOk)); render();
     })();
     return;
@@ -1474,7 +2088,7 @@ document.addEventListener('click', e=>{
       Store.set('qa_currentUserId', '__admin__');
       pushAccessLog({name:t(STR.roleAdmin), role:t(STR.roleAdmin), time:new Date().toISOString(), type:'admin-login'});
       sessionStorage.setItem('qa_unlocked','1');
-      state.auth = null; state.view='home';
+      state.auth = null; state.view='home'; state.formTemp = {};
       render();
     })();
     return;
@@ -1490,9 +2104,10 @@ document.addEventListener('click', e=>{
       else { const u = getUsers().find(x=>x.id===targetId); if(u){ ok = hash===u.passwordHash; name=u.name; role=u.role; } }
       if(!ok){ showToast(t(STR.wrongPassword)); return; }
       Store.set('qa_currentUserId', targetId);
+      markUserKnownOnThisDevice(targetId);
       pushAccessLog({name, role, time:new Date().toISOString(), type:'login'});
       sessionStorage.setItem('qa_unlocked','1');
-      state.auth = null; state.view='home';
+      state.auth = null; state.view='home'; state.formTemp = {};
       render();
     })();
     return;
@@ -1508,9 +2123,10 @@ document.addEventListener('click', e=>{
       const ok = await verifyBiometric(credId);
       if(!ok){ showToast(t(STR.biometricNotAvailable)); return; }
       Store.set('qa_currentUserId', targetId);
+      markUserKnownOnThisDevice(targetId);
       pushAccessLog({name, role, time:new Date().toISOString(), type:'login-biometric'});
       sessionStorage.setItem('qa_unlocked','1');
-      state.auth = null; state.view='home';
+      state.auth = null; state.view='home'; state.formTemp = {};
       render();
     })();
     return;
@@ -1521,10 +2137,39 @@ document.addEventListener('click', e=>{
     Store.set('qa_currentUserId', null);
     sessionStorage.removeItem('qa_unlocked');
     state.auth = {screen:'welcome'};
+    state.formTemp = {};
     render();
     return;
   }
 
+  if(action==='toggle-user-admin'){
+    const id = el.getAttribute('data-id');
+    const u = getUsers().find(x=>x.id===id);
+    if(!u) return;
+    const updated = Object.assign({}, u, {isAdmin: !u.isAdmin});
+    saveUserRemote(updated);
+    return;
+  }
+  if(action==='open-reset-modal'){
+    showResetPasswordModal(el.getAttribute('data-userid'), el.getAttribute('data-reqid'), el.getAttribute('data-name'));
+    return;
+  }
+  if(action==='confirm-reset-password'){
+    (async ()=>{
+      const userId = el.getAttribute('data-userid');
+      const reqId = el.getAttribute('data-reqid');
+      const newPass = (document.getElementById('newPassForUser').value||'').trim();
+      if(newPass.length<4){ showToast(t(STR.passwordTooShort)); return; }
+      const u = getUsers().find(x=>x.id===userId);
+      if(!u) return;
+      const passwordHash = await sha256Hex(newPass);
+      await saveUserRemote(Object.assign({}, u, {passwordHash}));
+      qaCol('passwordResetRequests/items').doc(reqId).delete().catch(()=>{});
+      document.querySelectorAll('.modal-overlay').forEach(m=>m.remove());
+      alert(t(STR.resetDonePrefix) + '\n\n' + newPass);
+    })();
+    return;
+  }
   if(action==='revoke-user'){
     if(!confirm(t(STR.revokeConfirm))) return;
     const id = el.getAttribute('data-id');
@@ -1535,6 +2180,7 @@ document.addEventListener('click', e=>{
     const val = (document.getElementById('masterCodeInput').value||'').trim();
     if(!val) return;
     saveMetaRemote({masterCode: val});
+    delete state.formTemp.masterCodeInput;
     showToast(t(STR.savedOk));
     return;
   }
@@ -1545,6 +2191,7 @@ document.addEventListener('click', e=>{
     if(view==='builder' && !isAdmin()){ showToast(t(STR.adminOnlyNotice)); return; }
     state.view = view; state.viewSectionId = section || null; state.search=''; state.dateFrom=''; state.dateTo='';
     render();
+    if(view==='files') refreshFilesCache();
   }
   else if(action==='toggle-lang'){ LANG = LANG==='ar'?'en':'ar'; localStorage.setItem('qa_lang', LANG); render(); }
   else if(action==='open-account-modal'){ showAccountModal(); }
@@ -1561,6 +2208,7 @@ document.addEventListener('click', e=>{
   else if(action==='edit-record'){
     const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
     const rec = getRecords(sectionId).find(r=>r.id===id);
+    if(!rec){ showToast(t(STR.noRecords)); return; }
     state.currentRecord = JSON.parse(JSON.stringify(rec));
     state.view='form'; state.viewSectionId = sectionId; render();
   }
@@ -1573,11 +2221,14 @@ document.addEventListener('click', e=>{
   else if(action==='save-record'){
     const sectionId = el.getAttribute('data-section'); const section = getSection(sectionId);
     const rec = state.currentRecord;
-    const missing = section.fields.filter(f=>f.required && !rec[f.key]);
+    const missing = section.fields.filter(f=> f.required && (rec[f.key]===undefined || rec[f.key]===null || rec[f.key]===''));
     if(missing.length){ showToast(t(STR.requiredMissing)); return; }
     saveRecordRemote(sectionId, rec);
     showToast(t(STR.savedOk));
     state.view='list'; render();
+    if(section.pdfMode !== 'daily'){
+      setTimeout(()=> shareRecordAsPDF(sectionId, rec.id), 600);
+    }
   }
 
   else if(action==='add-group-item'){
@@ -1622,8 +2273,54 @@ document.addEventListener('click', e=>{
     exportSectionXLSX(el.getAttribute('data-section'), r=> r.date && r.date.startsWith(prefix));
   }
   else if(action==='export-combined-month'){ exportCombinedMonth(); }
+  else if(action==='share-record-pdf'){ shareRecordAsPDF(el.getAttribute('data-section'), el.getAttribute('data-id')); }
+  else if(action==='share-daily-pdf'){ shareDailyPDF(el.getAttribute('data-section'), todayISO()); }
+  else if(action==='export-pdf-month'){ const {month,year}=state.monthly; shareMonthlyPDF(el.getAttribute('data-section'), year, month); }
+  else if(action==='download-stored-file'){
+    const f = FILES_CACHE.find(x=>x.id===el.getAttribute('data-id'));
+    if(f) downloadDataUrlFile(f.filename, f.dataUrl);
+  }
+  else if(action==='view-stored-file'){
+    const f = FILES_CACHE.find(x=>x.id===el.getAttribute('data-id'));
+    if(f) viewDataUrlFile(f.dataUrl);
+  }
+  else if(action==='share-stored-file'){
+    const f = FILES_CACHE.find(x=>x.id===el.getAttribute('data-id'));
+    if(f) shareStoredFileMeta(f);
+  }
+  else if(action==='delete-stored-file'){
+    const id = el.getAttribute('data-id');
+    deleteExportedFile(id).then(()=>{ FILES_CACHE = FILES_CACHE.filter(x=>x.id!==id); render(); });
+  }
 
   else if(action==='add-builder-field'){ state.builderFields.push({labelAr:'',labelEn:'',type:'text',optionsCsv:''}); render(); }
+  else if(action==='toggle-builtin-editor'){
+    const sid = el.getAttribute('data-section');
+    state.builtinFieldTarget = (state.builtinFieldTarget===sid) ? null : sid;
+    state.builderFields = [];
+    render();
+  }
+  else if(action==='save-builtin-fields'){
+    const sid = el.getAttribute('data-section');
+    if(!state.builderFields.length){ showToast(t(STR.requiredMissing)); return; }
+    state.builderFields.forEach((bf,i)=>{
+      const key = 'ext'+Date.now().toString(36)+i+'_'+(bf.labelEn||bf.labelAr||'field').toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,16);
+      const field = {key: key, type: bf.type, label:{ar: bf.labelAr||bf.labelEn, en: bf.labelEn||bf.labelAr}};
+      if(bf.type==='select'){
+        field.options = (bf.optionsCsv||'').split(',').map(s=>s.trim()).filter(Boolean).map(v=>({value:v, label:{ar:v, en:v}}));
+      }
+      addFieldToBuiltinSection(sid, field);
+    });
+    state.builderFields = [];
+    state.builtinFieldTarget = null;
+    showToast(t(STR.savedOk));
+    render();
+  }
+  else if(action==='remove-builtin-field'){
+    const sid = el.getAttribute('data-section'); const fieldKey = el.getAttribute('data-fieldkey');
+    if(!confirm(t(STR.deleteSectionConfirm))) return;
+    removeFieldFromBuiltinSection(sid, fieldKey);
+  }
   else if(action==='remove-builder-field'){ const idx=parseInt(el.getAttribute('data-index'),10); state.builderFields.splice(idx,1); render(); }
   else if(action==='delete-section'){
     if(!confirm(t(STR.deleteSectionConfirm))) return;
@@ -1647,23 +2344,29 @@ document.addEventListener('click', e=>{
     const newSection = { id:'custom_'+uid(), builtin:false, icon, name:{ar:nameAr||nameEn, en:nameEn||nameAr}, listFields: fields.slice(0,4).map(f=>f.key), fields };
     saveCustomSection(newSection);
     state.builderFields = [];
+    delete state.formTemp.newSecNameAr; delete state.formTemp.newSecNameEn; delete state.formTemp.newSecIcon;
     showToast(t(STR.savedOk));
     render();
   }
 });
 
 /* ===================== Init ===================== */
-window.addEventListener('online', render);
+window.addEventListener('online', ()=>{ render(); retryPendingImageUploads(); });
 window.addEventListener('offline', render);
-window.addEventListener('load', ()=>{ subscribeAllCoreData(); initAuthState(); render(); });
+window.addEventListener('load', ()=>{
+  app.innerHTML = renderLoadingScreen();
+  subscribeAllCoreData();
+  setTimeout(()=>{ _metaReady = true; _usersReady = true; tryBootApp(); }, 6000);
+});
 </script>
 
 <script>
 /* ===================== PWA: install + auto-update notification ===================== */
-const APP_VERSION = 'v1.1.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
+const APP_VERSION = 'v3.2.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').then(reg=>{
+      reg.update();
       reg.addEventListener('updatefound', ()=>{
         const newWorker = reg.installing;
         if(!newWorker) return;

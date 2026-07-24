@@ -1,5 +1,5 @@
 /* غيّر رقم الإصدار ده مع كل نسخة جديدة تنزلها (لازم يتغيّر عشان كل الأفراد ياخدوا التحديث) */
-const CACHE_NAME = 'qa-supply-chain-v1.1.0';
+const CACHE_NAME = 'qa-supply-chain-v3.2.0';
 const APP_SHELL = [
   './',
   './index.html',
@@ -28,9 +28,9 @@ self.addEventListener('fetch', (event) => {
   const isNavigation = event.request.mode === 'navigate';
 
   if (isNavigation) {
-    /* الصفحة الرئيسية: نحاول نجيبها من الإنترنت أولاً (آخر نسخة)، ولو مفيش نت نرجع للنسخة المحفوظة */
+    /* الصفحة الرئيسية: نجبر المتصفح يتجاهل أي نسخة مخزنة تمامًا ونجيبها فريش من السيرفر */
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-store' })
         .then((res) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
           return res;
