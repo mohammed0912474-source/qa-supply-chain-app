@@ -458,6 +458,7 @@ const STR = {
   dailyReportPdf:{ar:'📄 تقرير اليوم PDF', en:'📄 Today\'s Report PDF'},
   generatingPdf:{ar:'جاري تجهيز ملف PDF...', en:'Preparing PDF...'},
   pdfLoadFailed:{ar:'تعذر تحميل أداة PDF، تأكد من الاتصال بالإنترنت وحاول تاني', en:'Could not load the PDF tool — check your internet connection and try again'},
+  pdfGenericError:{ar:'حصلت مشكلة أثناء تجهيز التقرير، حاول تاني', en:'Something went wrong preparing the report — please try again'},
   imageSaveFailed:{ar:'تعذر حفظ الصورة، جرب تقفل كل نوافذ/تابات التطبيق وافتحه من جديد', en:'Could not save the image — try closing all tabs/windows of the app and reopening it'},
   popupBlocked:{ar:'المتصفح منع فتح نافذة جديدة، من فضلك اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني', en:'Your browser blocked the new window — please allow pop-ups for this site and try again'},
   filesTab:{ar:'الملفات', en:'Files'},
@@ -1703,31 +1704,31 @@ function buildReportHtml(section, records, reportTitle, imageMap){
 </html>`;
 }
 
-function openPrintableReport(htmlDocString){
-  const printWindow = window.open('', '_blank');
-  if(!printWindow){ showToast(t(STR.popupBlocked)); return false; }
+function writeAndPrintWindow(printWindow, htmlDocString){
   printWindow.document.open();
   printWindow.document.write(htmlDocString);
   printWindow.document.close();
   const triggerPrint = ()=>{ try{ printWindow.focus(); printWindow.print(); }catch(e){} };
   if(printWindow.document.readyState === 'complete'){ setTimeout(triggerPrint, 300); }
   else { printWindow.addEventListener('load', ()=> setTimeout(triggerPrint, 300)); }
-  return true;
 }
 
 async function shareRecordAsPDF(sectionId, recordId){
   const section = getSection(sectionId);
   const record = getRecords(sectionId).find(r=>r.id===recordId);
   if(!section || !record) return;
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
   showToast(t(STR.generatingPdf));
   try{
     const imageMap = await buildImageMapForRecords(section, [record]);
     const title = `${t(section.name)} — ${record.date||''}`;
     const html = buildReportHtml(section, [record], title, imageMap);
-    openPrintableReport(html);
+    writeAndPrintWindow(printWindow, html);
   }catch(err){
     console.error('PDF generation failed', err);
-    showToast(t(STR.pdfLoadFailed));
+    printWindow.close();
+    showToast(t(STR.pdfGenericError));
   }
 }
 
@@ -1735,15 +1736,18 @@ async function shareDailyPDF(sectionId, dateStr){
   const section = getSection(sectionId);
   const records = getRecords(sectionId).filter(r=>r.date===dateStr);
   if(!records.length){ showToast(t(STR.noRecords)); return; }
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
   showToast(t(STR.generatingPdf));
   try{
     const imageMap = await buildImageMapForRecords(section, records);
     const title = `${t(section.name)} — ${LANG==='ar'?'تقرير يوم':'Daily report'} ${dateStr}`;
     const html = buildReportHtml(section, records, title, imageMap);
-    openPrintableReport(html);
+    writeAndPrintWindow(printWindow, html);
   }catch(err){
     console.error('PDF generation failed', err);
-    showToast(t(STR.pdfLoadFailed));
+    printWindow.close();
+    showToast(t(STR.pdfGenericError));
   }
 }
 
@@ -1752,15 +1756,18 @@ async function shareMonthlyPDF(sectionId, year, month){
   const prefix = `${year}-${String(month).padStart(2,'0')}`;
   const records = getRecords(sectionId).filter(r=>r.date && r.date.startsWith(prefix));
   if(!records.length){ showToast(t(STR.noRecords)); return; }
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
   showToast(t(STR.generatingPdf));
   try{
     const imageMap = await buildImageMapForRecords(section, records);
     const title = `${t(section.name)} — ${LANG==='ar'?'تقرير شهر':'Monthly report'} ${month}/${year}`;
     const html = buildReportHtml(section, records, title, imageMap);
-    openPrintableReport(html);
+    writeAndPrintWindow(printWindow, html);
   }catch(err){
     console.error('PDF generation failed', err);
-    showToast(t(STR.pdfLoadFailed));
+    printWindow.close();
+    showToast(t(STR.pdfGenericError));
   }
 }
 
@@ -2226,9 +2233,6 @@ document.addEventListener('click', e=>{
     saveRecordRemote(sectionId, rec);
     showToast(t(STR.savedOk));
     state.view='list'; render();
-    if(section.pdfMode !== 'daily'){
-      setTimeout(()=> shareRecordAsPDF(sectionId, rec.id), 600);
-    }
   }
 
   else if(action==='add-group-item'){
@@ -2362,7 +2366,7 @@ window.addEventListener('load', ()=>{
 
 <script>
 /* ===================== PWA: install + auto-update notification ===================== */
-const APP_VERSION = 'v3.2.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
+const APP_VERSION = 'v3.3.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').then(reg=>{

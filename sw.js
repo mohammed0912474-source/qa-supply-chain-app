@@ -1,5 +1,5 @@
 /* غيّر رقم الإصدار ده مع كل نسخة جديدة تنزلها (لازم يتغيّر عشان كل الأفراد ياخدوا التحديث) */
-const CACHE_NAME = 'qa-supply-chain-v3.2.0';
+const CACHE_NAME = 'qa-supply-chain-v3.3.0';
 const APP_SHELL = [
   './',
   './index.html',
