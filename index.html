@@ -1728,7 +1728,7 @@ async function shareRecordAsPDF(sectionId, recordId){
   }catch(err){
     console.error('PDF generation failed', err);
     printWindow.close();
-    showToast(t(STR.pdfGenericError));
+    showToast(t(STR.pdfGenericError) + ' ['+(err&&err.message?err.message:err)+']', 8000);
   }
 }
 
@@ -1747,7 +1747,7 @@ async function shareDailyPDF(sectionId, dateStr){
   }catch(err){
     console.error('PDF generation failed', err);
     printWindow.close();
-    showToast(t(STR.pdfGenericError));
+    showToast(t(STR.pdfGenericError) + ' ['+(err&&err.message?err.message:err)+']', 8000);
   }
 }
 
@@ -1767,15 +1767,15 @@ async function shareMonthlyPDF(sectionId, year, month){
   }catch(err){
     console.error('PDF generation failed', err);
     printWindow.close();
-    showToast(t(STR.pdfGenericError));
+    showToast(t(STR.pdfGenericError) + ' ['+(err&&err.message?err.message:err)+']', 8000);
   }
 }
 
 /* ===================== Toast ===================== */
-function showToast(msg){
+function showToast(msg, duration){
   const el = document.createElement('div'); el.className='toast'; el.textContent = msg;
   document.body.appendChild(el);
-  setTimeout(()=> el.remove(), 2400);
+  setTimeout(()=> el.remove(), duration||2400);
 }
 
 /* ===================== Auth screens ===================== */
@@ -2366,7 +2366,7 @@ window.addEventListener('load', ()=>{
 
 <script>
 /* ===================== PWA: install + auto-update notification ===================== */
-const APP_VERSION = 'v3.3.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
+const APP_VERSION = 'v3.4.0-debug'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').then(reg=>{
