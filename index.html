@@ -1557,13 +1557,15 @@ function pdfFieldValue(f, record){
   return (val==null || val==='') ? '—' : esc(val);
 }
 
+function asArray(v){ return Array.isArray(v) ? v : []; }
+
 function collectImageIdsFromRecord(section, record){
   let ids = [];
   section.fields.forEach(f=>{
-    if(f.type==='image'){ ids = ids.concat(record[f.key]||[]); }
+    if(f.type==='image'){ ids = ids.concat(asArray(record[f.key])); }
     if(f.type==='group'){
-      (record[f.key]||[]).forEach(item=>{
-        f.fields.forEach(sf=>{ if(sf.type==='image'){ ids = ids.concat(item[sf.key]||[]); } });
+      asArray(record[f.key]).forEach(item=>{
+        f.fields.forEach(sf=>{ if(sf.type==='image'){ ids = ids.concat(asArray(item[sf.key])); } });
       });
     }
   });
@@ -1573,13 +1575,13 @@ function collectImagePathsFromRecord(section, record){
   const results = [];
   section.fields.forEach(f=>{
     if(f.type==='image'){
-      (record[f.key]||[]).forEach((id, idx)=> results.push({path:`${f.key}.${idx}`, id}));
+      asArray(record[f.key]).forEach((id, idx)=> results.push({path:`${f.key}.${idx}`, id}));
     }
     if(f.type==='group'){
-      (record[f.key]||[]).forEach((item, gi)=>{
+      asArray(record[f.key]).forEach((item, gi)=>{
         f.fields.forEach(sf=>{
           if(sf.type==='image'){
-            (item[sf.key]||[]).forEach((id, idx)=> results.push({path:`${f.key}.${gi}.${sf.key}.${idx}`, id}));
+            asArray(item[sf.key]).forEach((id, idx)=> results.push({path:`${f.key}.${gi}.${sf.key}.${idx}`, id}));
           }
         });
       });
@@ -1626,7 +1628,7 @@ function renderRecordPrintHtml(section, record, imageMap){
 
   const topImageFields = section.fields.filter(f=>f.type==='image');
   const topImages = topImageFields.map(f=>{
-    const ids = record[f.key]||[];
+    const ids = Array.isArray(record[f.key]) ? record[f.key] : [];
     if(!ids.length) return '';
     const imgs = ids.map(id=> imageMap[id] ? `<img crossorigin="anonymous" src="${imageMap[id]}">` : '').join('');
     return `<div class="pf-imgblock"><div class="pf-imglabel">${esc(t(f.label))}</div><div class="pf-imggrid">${imgs}</div></div>`;
@@ -1634,7 +1636,7 @@ function renderRecordPrintHtml(section, record, imageMap){
 
   const groupFields = section.fields.filter(f=>f.type==='group');
   const groups = groupFields.map(f=>{
-    const items = record[f.key]||[];
+    const items = Array.isArray(record[f.key]) ? record[f.key] : [];
     if(!items.length) return '';
     const normalSub = f.fields.filter(sf=>sf.type!=='image');
     const imageSub = f.fields.filter(sf=>sf.type==='image');
@@ -1645,7 +1647,7 @@ function renderRecordPrintHtml(section, record, imageMap){
         return `<tr><td class="pf-label">${esc(t(sf.label))}</td><td class="pf-value">${val!=null && val!==''? esc(val):'—'}</td></tr>`;
       }).join('');
       const subImages = imageSub.map(sf=>{
-        const ids = item[sf.key]||[];
+        const ids = Array.isArray(item[sf.key]) ? item[sf.key] : [];
         if(!ids.length) return '';
         const imgs = ids.map(id=> imageMap[id]? `<img crossorigin="anonymous" src="${imageMap[id]}">`:'').join('');
         return `<div class="pf-imgblock"><div class="pf-imglabel">${esc(t(sf.label))}</div><div class="pf-imggrid">${imgs}</div></div>`;
@@ -1728,7 +1730,7 @@ async function shareRecordAsPDF(sectionId, recordId){
   }catch(err){
     console.error('PDF generation failed', err);
     printWindow.close();
-    showToast(t(STR.pdfGenericError) + ' ['+(err&&err.message?err.message:err)+']', 8000);
+    showToast(t(STR.pdfGenericError));
   }
 }
 
@@ -1747,7 +1749,7 @@ async function shareDailyPDF(sectionId, dateStr){
   }catch(err){
     console.error('PDF generation failed', err);
     printWindow.close();
-    showToast(t(STR.pdfGenericError) + ' ['+(err&&err.message?err.message:err)+']', 8000);
+    showToast(t(STR.pdfGenericError));
   }
 }
 
@@ -1767,7 +1769,7 @@ async function shareMonthlyPDF(sectionId, year, month){
   }catch(err){
     console.error('PDF generation failed', err);
     printWindow.close();
-    showToast(t(STR.pdfGenericError) + ' ['+(err&&err.message?err.message:err)+']', 8000);
+    showToast(t(STR.pdfGenericError));
   }
 }
 
@@ -2366,7 +2368,7 @@ window.addEventListener('load', ()=>{
 
 <script>
 /* ===================== PWA: install + auto-update notification ===================== */
-const APP_VERSION = 'v3.4.0-debug'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
+const APP_VERSION = 'v3.4.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').then(reg=>{
