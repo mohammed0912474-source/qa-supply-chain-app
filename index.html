@@ -454,7 +454,7 @@ const STR = {
   addFieldToSectionHint:{ar:'الحقل الجديد هيتضاف في آخر نموذج هذا القسم لكل السجلات القادمة', en:'The new field will be appended to the end of this section\'s form for future records'},
   addPhotos:{ar:'إضافة صور', en:'Add Photos'},
   xlsxOfflineFallback:{ar:'تعذر الاتصال لتحميل مُصدِّر الإكسل، تم التصدير كملف CSV بدلاً من ذلك.', en:'Could not reach the Excel exporter, exported as CSV instead.'},
-  sharePdf:{ar:'مشاركة PDF', en:'Share PDF'},
+  sharePdf:{ar:'تنزيل PDF', en:'Download PDF'},
   dailyReportPdf:{ar:'📄 تقرير اليوم PDF', en:'📄 Today\'s Report PDF'},
   generatingPdf:{ar:'جاري تجهيز ملف PDF...', en:'Preparing PDF...'},
   pdfLoadFailed:{ar:'تعذر تحميل أداة PDF، تأكد من الاتصال بالإنترنت وحاول تاني', en:'Could not load the PDF tool — check your internet connection and try again'},
@@ -595,7 +595,7 @@ const BUILTIN_SECTIONS = [
       {key:'images', type:'image', label:{ar:'صور البوليصة', en:'Bill Images'}}
     ]
   },
-  { id:'trucks', builtin:true, icon:'🚚', pdfMode:'daily', name:{ar:'فحص الشاحنات', en:'Truck Inspection'},
+  { id:'trucks', builtin:true, icon:'🚚', name:{ar:'فحص الشاحنات', en:'Truck Inspection'},
     listFields:['date','truckNo','destination','inspectionResult'],
     fields:[
       {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
@@ -1039,7 +1039,7 @@ function renderList(sectionId){
           <div class="meta">${r.date?esc(r.date):''}</div>
         </div>
         <div class="actions">
-          ${showPerRecordPdf? `<button class="btn btn-outline btn-sm" data-action="share-record-pdf" data-section="${sectionId}" data-id="${r.id}" title="${esc(t(STR.sharePdf))}">📄</button>`:''}
+          ${showPerRecordPdf? `<button class="btn btn-outline btn-sm" data-action="share-record-pdf" data-section="${sectionId}" data-id="${r.id}" title="${esc(t(STR.sharePdf))}">⬇️</button>`:''}
           <button class="btn btn-outline btn-sm" data-action="edit-record" data-section="${sectionId}" data-id="${r.id}">✏️</button>
           <button class="btn btn-danger btn-sm" data-action="delete-record" data-section="${sectionId}" data-id="${r.id}">🗑️</button>
         </div>
@@ -1083,7 +1083,7 @@ function renderForm(sectionId){
 }
 
 function renderImageField(path, arr, labelHtml){
-  arr = arr||[];
+  arr = asArray(arr);
   const thumbs = arr.map((imgId,idx)=>`<div class="img-thumb"><img data-imgid="${imgId}" alt=""><button class="rm" data-action="remove-image" data-field="${esc(path)}" data-index="${idx}">✕</button></div>`).join('');
   return `<div class="field field-full">${labelHtml}
     <div class="img-grid">${thumbs}
@@ -1128,7 +1128,7 @@ function renderField(f, record){
     </div>`;
   }
   if(f.type==='multiDate'){
-    const arr = val || [];
+    const arr = asArray(val);
     const rows = arr.map((item,idx)=>`
       <div class="md-row">
         <input type="date" data-field="${f.key}.${idx}.prod" value="${esc(item.prod||'')}" placeholder="${LANG==='ar'?'إنتاج':'Prod'}">
@@ -1142,7 +1142,7 @@ function renderField(f, record){
     </div>`;
   }
   if(f.type==='group'){
-    const arr = val || [];
+    const arr = asArray(val);
     const normalSubFields = f.fields.filter(sf=>sf.type!=='image');
     const imageSubFields = f.fields.filter(sf=>sf.type==='image');
     const items = arr.map((item,idx)=>{
@@ -1706,71 +1706,119 @@ function buildReportHtml(section, records, reportTitle, imageMap){
 </html>`;
 }
 
+let _pdfLibsLoading = null;
+function loadPdfLibs(){
+  if(window.jspdf && window.html2canvas) return Promise.resolve(true);
+  if(_pdfLibsLoading) return _pdfLibsLoading;
+  _pdfLibsLoading = (async ()=>{
+    if(!window.jspdf){
+      await loadScriptWithFallback([
+        'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+        'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'
+      ]);
+    }
+    if(!window.html2canvas){
+      await loadScriptWithFallback([
+        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+        'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'
+      ]);
+    }
+    return !!(window.jspdf && window.html2canvas);
+  })();
+  return _pdfLibsLoading;
+}
+
 function writeAndPrintWindow(printWindow, htmlDocString){
   printWindow.document.open();
   printWindow.document.write(htmlDocString);
   printWindow.document.close();
-  const triggerPrint = ()=>{ try{ printWindow.focus(); printWindow.print(); }catch(e){} };
-  if(printWindow.document.readyState === 'complete'){ setTimeout(triggerPrint, 300); }
-  else { printWindow.addEventListener('load', ()=> setTimeout(triggerPrint, 300)); }
+}
+
+async function generatePdfBlobAndStore(htmlDocString, filename){
+  const container = document.createElement('iframe');
+  container.style.position='fixed'; container.style.left='-9999px'; container.style.top='0';
+  container.style.width='780px'; container.style.height='100px'; container.style.border='none';
+  document.body.appendChild(container);
+  try{
+    container.srcdoc = htmlDocString;
+    await new Promise(res=>{ container.onload = res; setTimeout(res, 2000); });
+    const doc = container.contentDocument;
+    const body = doc.body;
+    const imgs = Array.from(body.querySelectorAll('img'));
+    await Promise.all(imgs.map(img=>{
+      if(img.complete) return img.decode ? img.decode().catch(()=>{}) : Promise.resolve();
+      return new Promise(res=>{ img.onload=res; img.onerror=res; setTimeout(res, 4000); });
+    }));
+    await new Promise(res=>setTimeout(res, 100));
+
+    const canvas = await window.html2canvas(body, {scale:2, useCORS:true, backgroundColor:'#ffffff', windowWidth:780});
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','pt','a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+    let heightLeft = imgHeight, position = 0;
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while(heightLeft > 0){
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+    const dataUri = pdf.output('datauristring');
+    pdf.save(filename);
+    await storeExportedFile(filename, 'pdf', dataUri);
+    return true;
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
+async function generateOrViewReport(records, section, title, filename){
+  if(!records.length){ showToast(t(STR.noRecords)); return; }
+  showToast(t(STR.generatingPdf));
+  const libsOk = await loadPdfLibs().catch(()=>false);
+  const imageMap = await buildImageMapForRecords(section, records).catch(()=>({}));
+  const html = buildReportHtml(section, records, title, imageMap);
+  if(libsOk){
+    try{
+      await generatePdfBlobAndStore(html, filename);
+      showToast(t(STR.savedOk));
+      return;
+    }catch(err){
+      console.error('PDF generation failed, falling back to print view', err);
+    }
+  }
+  /* لو تعذر تحميل أداة الـ PDF أو فشلت، نفتح معاينة في نافذة جديدة كخطة بديلة مضمونة */
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
+  writeAndPrintWindow(printWindow, html);
 }
 
 async function shareRecordAsPDF(sectionId, recordId){
   const section = getSection(sectionId);
   const record = getRecords(sectionId).find(r=>r.id===recordId);
   if(!section || !record) return;
-  const printWindow = window.open('', '_blank');
-  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
-  showToast(t(STR.generatingPdf));
-  try{
-    const imageMap = await buildImageMapForRecords(section, [record]);
-    const title = `${t(section.name)} — ${record.date||''}`;
-    const html = buildReportHtml(section, [record], title, imageMap);
-    writeAndPrintWindow(printWindow, html);
-  }catch(err){
-    console.error('PDF generation failed', err);
-    printWindow.close();
-    showToast(t(STR.pdfGenericError));
-  }
+  await generateOrViewReport([record], section, `${t(section.name)} — ${record.date||''}`, `${section.id}_${record.date||todayISO()}.pdf`);
 }
 
 async function shareDailyPDF(sectionId, dateStr){
   const section = getSection(sectionId);
   const records = getRecords(sectionId).filter(r=>r.date===dateStr);
-  if(!records.length){ showToast(t(STR.noRecords)); return; }
-  const printWindow = window.open('', '_blank');
-  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
-  showToast(t(STR.generatingPdf));
-  try{
-    const imageMap = await buildImageMapForRecords(section, records);
-    const title = `${t(section.name)} — ${LANG==='ar'?'تقرير يوم':'Daily report'} ${dateStr}`;
-    const html = buildReportHtml(section, records, title, imageMap);
-    writeAndPrintWindow(printWindow, html);
-  }catch(err){
-    console.error('PDF generation failed', err);
-    printWindow.close();
-    showToast(t(STR.pdfGenericError));
-  }
+  await generateOrViewReport(records, section, `${t(section.name)} — ${LANG==='ar'?'تقرير يوم':'Daily report'} ${dateStr}`, `${section.id}_daily_${dateStr}.pdf`);
 }
 
 async function shareMonthlyPDF(sectionId, year, month){
   const section = getSection(sectionId);
   const prefix = `${year}-${String(month).padStart(2,'0')}`;
   const records = getRecords(sectionId).filter(r=>r.date && r.date.startsWith(prefix));
-  if(!records.length){ showToast(t(STR.noRecords)); return; }
-  const printWindow = window.open('', '_blank');
-  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
-  showToast(t(STR.generatingPdf));
-  try{
-    const imageMap = await buildImageMapForRecords(section, records);
-    const title = `${t(section.name)} — ${LANG==='ar'?'تقرير شهر':'Monthly report'} ${month}/${year}`;
-    const html = buildReportHtml(section, records, title, imageMap);
-    writeAndPrintWindow(printWindow, html);
-  }catch(err){
-    console.error('PDF generation failed', err);
-    printWindow.close();
-    showToast(t(STR.pdfGenericError));
-  }
+  await generateOrViewReport(records, section, `${t(section.name)} — ${LANG==='ar'?'تقرير شهر':'Monthly report'} ${month}/${year}`, `${section.id}_monthly_${prefix}.pdf`);
 }
 
 /* ===================== Toast ===================== */
@@ -2368,7 +2416,7 @@ window.addEventListener('load', ()=>{
 
 <script>
 /* ===================== PWA: install + auto-update notification ===================== */
-const APP_VERSION = 'v3.4.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
+const APP_VERSION = 'v3.5.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').then(reg=>{
