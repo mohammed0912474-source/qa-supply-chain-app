@@ -33,7 +33,7 @@ html,body{margin:0;padding:0;height:100%;}
 body{
   background:var(--bg); color:var(--text);
   font-family:"Cairo","IBM Plex Sans","Segoe UI", Tahoma, Geneva, Arial, sans-serif;
-  padding-bottom:76px; -webkit-tap-highlight-color:transparent;
+  padding-bottom:calc(88px + env(safe-area-inset-bottom)); -webkit-tap-highlight-color:transparent;
   -webkit-font-smoothing:antialiased;
 }
 [dir="rtl"] body{font-family:"Cairo","IBM Plex Sans","Segoe UI", Tahoma, Arial, sans-serif;}
@@ -81,7 +81,7 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 .tabbar{
   position:fixed; bottom:0; inset-inline-start:0; inset-inline-end:0; z-index:40;
   background:#fff; border-top:1px solid var(--border);
-  display:flex; overflow-x:auto; padding:6px 4px; gap:2px;
+  display:flex; overflow-x:auto; padding:6px 4px calc(6px + env(safe-area-inset-bottom)); gap:2px;
   box-shadow:0 -4px 16px rgba(15,35,65,.08);
 }
 .tab-btn{
@@ -89,7 +89,7 @@ input,select,textarea{font-family:inherit; font-size:15px;}
   align-items:center; gap:2px; padding:6px 8px; border-radius:10px; color:var(--muted); font-size:10.5px;
   font-weight:600; transition:background .15s, color .15s;
 }
-.tab-btn .ico{font-size:19px;}
+.tab-btn .ico{font-size:19px; display:flex; align-items:center; justify-content:center;}
 .tab-btn.active{color:var(--teal-dark); background:var(--teal-light); font-weight:800;}
 
 /* Layout */
@@ -267,6 +267,16 @@ const WELCOME_TAGLINES = [
   {ar:'من الفحص الدقيق تبدأ الثقة', en:'Trust Begins with Careful Inspection'}
 ];
 const SESSION_TAGLINE = WELCOME_TAGLINES[Math.floor(Math.random()*WELCOME_TAGLINES.length)];
+
+/* شعار مخصص (درع + علامة صح) بدل الإيموجي - متسق مع أيقونة التطبيق */
+const LOGO_SVG = `<svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#2E7BD6"/><stop offset="100%" stop-color="#0EA5A0"/>
+  </linearGradient></defs>
+  <path d="M50 4 L88 18 V48 C88 74 70 90 50 96 C30 90 12 74 12 48 V18 Z" fill="url(#logoGrad)"/>
+  <path d="M50 12 L80 24 V48 C80 69 65 82 50 87 C35 82 20 69 20 48 V24 Z" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2.5"/>
+  <path d="M32 50 L44 62 L70 34" stroke="#fff" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
 
 /* رفع الصور لخدمة ImgBB المجانية عشان تتزامن الصور بين كل الأفراد من غير أي تكلفة على Firebase */
 const IMGBB_API_KEY = '2e40bd26cdd16811e0091eb15993b992';
@@ -852,7 +862,7 @@ function renderHeader(){
   <div class="app-header">
     <div class="header-top">
       <div class="brand">
-        <div class="logo">🛡️</div>
+        <div class="logo">${LOGO_SVG}</div>
         <div class="titles">
           <h1>${esc(t(STR.appName))}</h1>
           <div class="sub">${user?esc(user.name):'QA Supply Chain'}</div>
@@ -868,14 +878,22 @@ function renderHeader(){
   </div>`;
 }
 
+const NAV_ICONS = {
+  home: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5L12 4l9 7.5"/><path d="M5 10v9a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1v-9"/></svg>`,
+  dashboard: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="10"/></svg>`,
+  monthly: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>`,
+  files: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>`,
+  builder: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 005 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`
+};
+
 function renderTabbar(){
   const items = [
-    {id:'home', view:'home', icon:'🏠', label:STR.home},
-    {id:'dashboard', view:'dashboard', icon:'📊', label:STR.dashboard},
+    {id:'home', view:'home', icon:NAV_ICONS.home, label:STR.home},
+    {id:'dashboard', view:'dashboard', icon:NAV_ICONS.dashboard, label:STR.dashboard},
     ...getAllSections().map(s=>({id:s.id, view:'list', sectionId:s.id, icon:s.icon, label:s.name})),
-    {id:'monthly', view:'monthly', icon:'🗓️', label:STR.monthly},
-    {id:'files', view:'files', icon:'📁', label:STR.filesTab},
-    ...(isAdmin() ? [{id:'builder', view:'builder', icon:'⚙️', label:STR.builder}] : [])
+    {id:'monthly', view:'monthly', icon:NAV_ICONS.monthly, label:STR.monthly},
+    {id:'files', view:'files', icon:NAV_ICONS.files, label:STR.filesTab},
+    ...(isAdmin() ? [{id:'builder', view:'builder', icon:NAV_ICONS.builder, label:STR.builder}] : [])
   ];
   return `<div class="tabbar">${items.map(it=>{
     const active = (state.view===it.view && (it.view!=='list' || state.viewSectionId===it.sectionId)) || (state.view==='form' && it.view==='list' && state.viewSectionId===it.sectionId);
@@ -899,6 +917,11 @@ function renderHome(){
   <div class="card">
     <h2>${LANG==='ar'?'نظرة سريعة':'Quick Overview'}</h2>
     <div class="stats-grid">${stats}</div>
+  </div>
+  <div style="text-align:center; padding:10px 0 4px; color:var(--muted); font-size:11px; line-height:1.8;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:6px;opacity:.6;">${LOGO_SVG}</div>
+    © ${new Date().getFullYear()} ${LANG==='ar'?'منظومة الجودة - سلسلة الإمداد':'QA Supply Chain'}<br>
+    ${LANG==='ar'?'تصميم وتطوير: محمد المصري الداي حامد':'Designed & Developed by Mohammed Masriy Alday Hamed'}
   </div>`;
 }
 
@@ -1856,7 +1879,7 @@ function renderAuthGate(){
   return `
   <div class="app-header">
     <div class="header-top">
-      <div class="brand"><div class="logo">🛡️</div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
+      <div class="brand"><div class="logo">${LOGO_SVG}</div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
       <div class="header-actions"><button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button></div>
     </div>
     <div class="tagline-strip"><span class="dot">✦</span>${esc(t(SESSION_TAGLINE))}<span class="dot">✦</span></div>
@@ -2430,7 +2453,7 @@ window.addEventListener('load', ()=>{
 
 <script>
 /* ===================== PWA: install + auto-update notification ===================== */
-const APP_VERSION = 'v4.0.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
+const APP_VERSION = 'v4.1.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').then(reg=>{
