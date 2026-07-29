@@ -1,5 +1,5 @@
 /* غيّر رقم الإصدار ده مع كل نسخة جديدة تنزلها (لازم يتغيّر عشان كل الأفراد ياخدوا التحديث) */
-const CACHE_NAME = 'qa-supply-chain-v4.1.0';
+const CACHE_NAME = 'qa-supply-chain-v5.0.0';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );

@@ -328,6 +328,29 @@ async function saveImage(id, dataUrl){ const db = await openDB(); return new Pro
 async function getImage(id){ try{ const db = await openDB(); return new Promise((res)=>{ const tx=db.transaction('images','readonly'); const r=tx.objectStore('images').get(id); r.onsuccess=()=>res(r.result?r.result.dataUrl:null); r.onerror=()=>res(null); }); }catch(e){ return null; } }
 async function deleteImageFromDB(id){ try{ const db = await openDB(); const tx=db.transaction('images','readwrite'); tx.objectStore('images').delete(id); }catch(e){} }
 
+function compressImageDataUrl(dataUrl, maxDim, quality){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if(w<=0 || h<=0){ resolve(dataUrl); return; }
+        if(w > maxDim || h > maxDim){
+          if(w>=h){ h = Math.round(h * (maxDim/w)); w = maxDim; }
+          else { w = Math.round(w * (maxDim/h)); h = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality||0.82));
+      }catch(e){ resolve(dataUrl); }
+    };
+    img.onerror = ()=> resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function textToDataUrl(text, mime){
   const bytes = new TextEncoder().encode(text);
   let binary = ''; bytes.forEach(b=> binary += String.fromCharCode(b));
@@ -484,6 +507,8 @@ const STR = {
   pdfLoadFailed:{ar:'تعذر تحميل أداة PDF، تأكد من الاتصال بالإنترنت وحاول تاني', en:'Could not load the PDF tool — check your internet connection and try again'},
   pdfGenericError:{ar:'حصلت مشكلة أثناء تجهيز التقرير، حاول تاني', en:'Something went wrong preparing the report — please try again'},
   imageSaveFailed:{ar:'تعذر حفظ الصورة، جرب تقفل كل نوافذ/تابات التطبيق وافتحه من جديد', en:'Could not save the image — try closing all tabs/windows of the app and reopening it'},
+  addingPhotos:{ar:'جاري إضافة الصور...', en:'Adding photos...'},
+  photosAdded:{ar:'تمت إضافة الصور ✅', en:'Photos added ✅'},
   popupBlocked:{ar:'المتصفح منع فتح نافذة جديدة، من فضلك اسمح بالنوافذ المنبثقة لهذا الموقع وحاول تاني', en:'Your browser blocked the new window — please allow pop-ups for this site and try again'},
   filesTab:{ar:'الملفات', en:'Files'},
   filesHint:{ar:'الملفات دي (PDF/Excel/CSV) محفوظة على هذا الجهاز فقط، مش متزامنة مع باقي الفريق', en:'These files (PDF/Excel/CSV) are stored on this device only — not synced with the rest of the team'},
@@ -561,7 +586,10 @@ const ROLE_OPTIONS = [
 ];
 
 /* ===================== Field helpers ===================== */
-const UNIT_OPTIONS = ['كجم/KG','طن/Ton','لتر/Liter','كرتونة/Carton','بالة/Pallet','قطعة/Piece','شكارة/Bag','صندوق/Box'];
+const UNIT_OPTIONS = [
+  {ar:'كجم', en:'KG'}, {ar:'طن', en:'Ton'}, {ar:'لتر', en:'Liter'}, {ar:'كرتونة', en:'Carton'},
+  {ar:'بالة', en:'Pallet'}, {ar:'قطعة', en:'Piece'}, {ar:'جوال', en:'Sack'}, {ar:'صندوق', en:'Box'}
+];
 const SEL = (val, labelAr, labelEn) => ({value:val, label:{ar:labelAr, en:labelEn}});
 
 /* ===================== Built-in Section Schemas ===================== */
@@ -587,11 +615,11 @@ const BUILTIN_SECTIONS = [
       {key:'containerDetails', type:'group', label:{ar:'تفاصيل الحاويات', en:'Container Details'},
         fields:[
           {key:'containerNo', type:'text', label:{ar:'رقم الحاوية', en:'Container No.'}},
-          {key:'sealNo', type:'text', label:{ar:'رقم الختم', en:'Seal No.'}},
           {key:'condition', type:'select', label:{ar:'حالة الحاوية', en:'Condition'}, options:[SEL('good','سليمة','Good'),SEL('damaged','تالفة','Damaged'),SEL('repair','تحتاج صيانة','Needs Repair')]},
           {key:'qty', type:'number', label:{ar:'الكمية', en:'Qty'}},
-          {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
           {key:'nc', type:'number', label:{ar:'عدد NC بالحاوية', en:'NC in this Container'}},
+          {key:'reback', type:'number', label:{ar:'Reback بالحاوية', en:'Reback in this Container'}},
+          {key:'loss', type:'number', label:{ar:'Loss بالحاوية', en:'Loss in this Container'}},
           {key:'notes', type:'textarea', label:{ar:'ملاحظات', en:'Notes'}}
         ]},
       {key:'productDetails', type:'group', label:{ar:'تفاصيل المنتج', en:'Product Details'},
@@ -950,13 +978,13 @@ function lastMonths(n){
   for(let i=n-1;i>=0;i--){ const d=new Date(now.getFullYear(), now.getMonth()-i, 1); arr.push({year:d.getFullYear(), month:d.getMonth()+1, key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}); }
   return arr;
 }
-function ncTrendData(){
-  const months = lastMonths(6);
+function trendData(metricKey, months){
+  const monthsArr = lastMonths(months);
   const allContainers = getRecords('containers');
-  return months.map(m=>{
+  return monthsArr.map(m=>{
     const recs = allContainers.filter(r=>r.date && r.date.startsWith(m.key));
-    const nc = recs.reduce((a,r)=>a+(parseFloat(r.totalNC)||0),0);
-    return {label:`${m.month}/${String(m.year).slice(2)}`, value:Math.round(nc*100)/100};
+    const sum = recs.reduce((a,r)=>a+(parseFloat(r[metricKey])||0),0);
+    return {label:`${m.month}/${String(m.year).slice(2)}`, value:Math.round(sum*100)/100};
   });
 }
 function renderBarChart(items, color){
@@ -1011,7 +1039,15 @@ function renderDashboard(){
   ];
   const kpiHtml = kpis.map(k=>`<div class="kpi-card ${k.tone}"><div class="kpi-val">${k.value}</div><div class="kpi-lbl">${esc(k.label)}</div></div>`).join('');
 
-  const trend = ncTrendData();
+  const trendMetric = state.dashboardTrendMetric || 'totalNC';
+  const trendMonths = state.dashboardTrendMonths || 6;
+  const trend = trendData(trendMetric, trendMonths);
+  const trendMetricLabels = {
+    totalNC: {ar:'إجمالي NC', en:'Total NC'},
+    totalReback: {ar:'Reback', en:'Reback'},
+    totalLoss: {ar:'Loss', en:'Loss'}
+  };
+  const trendColors = {totalNC:'var(--accent)', totalReback:'var(--gold)', totalLoss:'var(--danger)'};
   const truckParts = [
     {label: LANG==='ar'?'مقبولة':'Accepted', value:tAgg.accepted, color:'var(--success)'},
     {label: LANG==='ar'?'مرفوضة':'Rejected', value:tAgg.rejected, color:'var(--danger)'}
@@ -1037,8 +1073,18 @@ function renderDashboard(){
     <div class="kpi-grid">${kpiHtml}</div>
   </div>
   <div class="card chart-card">
-    <h3>${LANG==='ar'?'اتجاه الـ NC خلال آخر ٦ أشهر':'NC Trend (last 6 months)'}</h3>
-    ${renderBarChart(trend, 'var(--accent)')}
+    <div class="section-title"><h3 style="margin:0;">${LANG==='ar'?'اتجاه المؤشرات عبر الوقت':'Metric Trend Over Time'}</h3></div>
+    <div class="period-toggle" style="margin-bottom:12px;">
+      <select data-action="dashboard-trend-metric">
+        ${Object.keys(trendMetricLabels).map(k=>`<option value="${k}" ${k===trendMetric?'selected':''}>${esc(t(trendMetricLabels[k]))}</option>`).join('')}
+      </select>
+      <select data-action="dashboard-trend-months">
+        <option value="3" ${trendMonths==3?'selected':''}>${LANG==='ar'?'آخر 3 أشهر':'Last 3 months'}</option>
+        <option value="6" ${trendMonths==6?'selected':''}>${LANG==='ar'?'آخر 6 أشهر':'Last 6 months'}</option>
+        <option value="12" ${trendMonths==12?'selected':''}>${LANG==='ar'?'آخر 12 شهر':'Last 12 months'}</option>
+      </select>
+    </div>
+    ${renderBarChart(trend, trendColors[trendMetric])}
   </div>
   <div class="card chart-card">
     <h3>${LANG==='ar'?'نتائج فحص الشاحنات':'Truck Inspection Results'}</h3>
@@ -1218,7 +1264,7 @@ function renderField(f, record){
 }
 
 function unitDatalist(){
-  return `<datalist id="unitOptionsList">${UNIT_OPTIONS.map(u=>`<option value="${esc(u)}">`).join('')}</datalist>`;
+  return `<datalist id="unitOptionsList">${UNIT_OPTIONS.map(u=>`<option value="${esc(LANG==='ar'?u.ar:u.en)}">`).join('')}</datalist>`;
 }
 
 async function hydrateAllImages(){
@@ -1229,9 +1275,9 @@ async function hydrateAllImages(){
     const url = await getImage(id);
     if(url) img.src = url;
   }
-  if(!document.getElementById('unitOptionsList')){
-    const div = document.createElement('div'); div.innerHTML = unitDatalist(); document.body.appendChild(div.firstChild);
-  }
+  const existingDatalist = document.getElementById('unitOptionsList');
+  if(existingDatalist) existingDatalist.remove();
+  const div = document.createElement('div'); div.innerHTML = unitDatalist(); document.body.appendChild(div.firstChild);
 }
 
 function updateComputedDisplays(section){
@@ -2041,20 +2087,22 @@ document.addEventListener('change', e=>{
     if(!remaining) return;
     const recordRef = state.currentRecord;
     const sectionIdRef = state.viewSectionId;
+    showToast(t(STR.addingPhotos));
     files.forEach(file=>{
       const reader = new FileReader();
       reader.onload = async ()=>{
         try{
+          const compressed = await compressImageDataUrl(reader.result, 1600, 0.82);
           const tempId = uid();
-          await saveImage(tempId, reader.result);
+          await saveImage(tempId, compressed);
           const arr = getPath(recordRef, path) || [];
           arr.push(tempId);
           setPath(recordRef, path, arr);
           remaining--;
-          if(remaining===0) render();
+          if(remaining===0){ render(); showToast(t(STR.photosAdded)); }
 
           /* رفع في الخلفية لخدمة ImgBB عشان الصورة تظهر لكل الأفراد */
-          uploadToImgBB(reader.result).then(url=>{
+          uploadToImgBB(compressed).then(url=>{
             if(!url) return;
             const arr2 = getPath(recordRef, path) || [];
             const idx = arr2.indexOf(tempId);
@@ -2064,13 +2112,19 @@ document.addEventListener('change', e=>{
             const imgEl = document.querySelector(`img[data-imgid="${tempId}"]`);
             if(imgEl){ imgEl.src = url; imgEl.setAttribute('data-imgid', url); }
             if(recordRef && recordRef.id){ saveRecordRemote(sectionIdRef, recordRef).catch(()=>{}); }
-          });
+          }).catch(()=>{});
         }catch(err){
           console.warn('add-image failed', err);
           showToast(t(STR.imageSaveFailed));
           remaining--;
           if(remaining===0) render();
         }
+      };
+      reader.onerror = ()=>{
+        console.warn('file read failed');
+        showToast(t(STR.imageSaveFailed));
+        remaining--;
+        if(remaining===0) render();
       };
       reader.readAsDataURL(file);
     });
@@ -2079,6 +2133,8 @@ document.addEventListener('change', e=>{
   if(el.getAttribute('data-action')==='filter-to'){ state.dateTo = el.value; render(); }
   if(el.getAttribute('data-action')==='monthly-month'){ state.monthly.month = parseInt(el.value,10); render(); }
   if(el.getAttribute('data-action')==='monthly-year'){ state.monthly.year = parseInt(el.value,10); render(); }
+  if(el.getAttribute('data-action')==='dashboard-trend-metric'){ state.dashboardTrendMetric = el.value; render(); }
+  if(el.getAttribute('data-action')==='dashboard-trend-months'){ state.dashboardTrendMonths = parseInt(el.value,10); render(); }
 });
 
 document.addEventListener('click', e=>{
@@ -2452,40 +2508,17 @@ window.addEventListener('load', ()=>{
 </script>
 
 <script>
-/* ===================== PWA: install + auto-update notification ===================== */
-const APP_VERSION = 'v4.1.0'; /* غيّر هذا الرقم (ونفس الرقم في sw.js) مع كل نسخة جديدة تنزلها على الاستضافة */
+/* ===================== PWA: install + auto-update (fully automatic, no banner needed) ===================== */
+const APP_VERSION = 'v5.0.0';
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('./sw.js').then(reg=>{
-      reg.update();
-      reg.addEventListener('updatefound', ()=>{
-        const newWorker = reg.installing;
-        if(!newWorker) return;
-        newWorker.addEventListener('statechange', ()=>{
-          if(newWorker.state==='installed' && navigator.serviceWorker.controller){
-            showUpdateBanner(reg);
-          }
-        });
-      });
-    }).catch(err=> console.warn('SW registration failed', err));
+    navigator.serviceWorker.register('./sw.js').then(reg=> reg.update()).catch(err=> console.warn('SW registration failed', err));
   });
   let refreshingAfterUpdate = false;
   navigator.serviceWorker.addEventListener('controllerchange', ()=>{
     if(refreshingAfterUpdate) return;
     refreshingAfterUpdate = true;
     window.location.reload();
-  });
-}
-function showUpdateBanner(reg){
-  if(document.getElementById('updateBanner')) return;
-  const bar = document.createElement('div');
-  bar.id = 'updateBanner'; bar.className = 'update-banner';
-  const isAr = document.documentElement.lang === 'ar';
-  bar.innerHTML = `<span>🔄 ${isAr ? 'يوجد تحديث جديد للتطبيق' : 'A new update is available'}</span>
-    <button id="updateNowBtn">${isAr ? 'تحديث الآن' : 'Update now'}</button>`;
-  document.body.appendChild(bar);
-  document.getElementById('updateNowBtn').addEventListener('click', ()=>{
-    if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
   });
 }
 </script>
