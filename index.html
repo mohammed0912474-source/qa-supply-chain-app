@@ -949,7 +949,7 @@ function renderHome(){
   <div style="text-align:center; padding:10px 0 4px; color:var(--muted); font-size:11px; line-height:1.8;">
     <div style="display:flex;align-items:center;justify-content:center;gap:6px;opacity:.6;">${LOGO_SVG}</div>
     © ${new Date().getFullYear()} ${LANG==='ar'?'منظومة الجودة - سلسلة الإمداد':'QA Supply Chain'}<br>
-    ${LANG==='ar'?'تصميم وتطوير: محمد المصري الداي حامد':'Designed & Developed by Mohammed Masriy Alday Hamed'}
+    ${LANG==='ar'?'تصميم وتطوير: محمد مصري الضي':'Designed & Developed by Mohammed Masri Aldawy'}
   </div>`;
 }
 
@@ -2509,7 +2509,7 @@ window.addEventListener('load', ()=>{
 
 <script>
 /* ===================== PWA: install + auto-update (fully automatic, no banner needed) ===================== */
-const APP_VERSION = 'v5.0.0';
+const APP_VERSION = 'v5.0.1';
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').then(reg=> reg.update()).catch(err=> console.warn('SW registration failed', err));
