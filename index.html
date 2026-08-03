@@ -14,7 +14,11 @@
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="dns-prefetch" href="https://api.imgbb.com">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <style>
 :root{
   --navy:#0A2540; --navy2:#123A5E; --navy3:#0D3158;
@@ -497,8 +501,8 @@ const STR = {
   appName:{ar:'منظومة الجودة - سلسلة الإمداد', en:'QA Supply Chain'},
   home:{ar:'الرئيسية', en:'Home'},
   dashboard:{ar:'التحليلات', en:'Dashboard'},
-  containers:{ar:'فحص الحاويات', en:'Container Inspection'},
-  trucks:{ar:'فحص الشاحنات', en:'Truck Inspection'},
+  containers:{ar:'الشحنات', en:'Shipment'},
+  trucks:{ar:'الشحن', en:'Loading'},
   monthly:{ar:'التقرير الشهري', en:'Monthly Report'},
   builder:{ar:'الإعدادات', en:'Settings'},
   add:{ar:'إضافة', en:'Add'},
@@ -854,8 +858,20 @@ function getSection(id){ return getAllSections().find(s=>s.id===id); }
 
 /* ===================== Records storage ===================== */
 function getRecords(sectionId){ return RECORDS_CACHE[sectionId] || []; }
-function saveRecordRemote(sectionId, record){ return qaCol('records_'+sectionId+'/items').doc(record.id).set(record); }
-function deleteRecordRemote(sectionId, id){ return qaCol('records_'+sectionId+'/items').doc(id).delete(); }
+function saveRecordRemote(sectionId, record){
+  if(!record || !record.id) return Promise.reject(new Error('Invalid record'));
+  return qaCol('records_'+sectionId+'/items').doc(record.id).set(record).catch(err=>{
+    console.error('saveRecordRemote failed:', err);
+    throw err;
+  });
+}
+function deleteRecordRemote(sectionId, id){
+  if(!id) return Promise.reject(new Error('Invalid id'));
+  return qaCol('records_'+sectionId+'/items').doc(id).delete().catch(err=>{
+    console.error('deleteRecordRemote failed:', err);
+    throw err;
+  });
+}
 
 /* ===================== Path get/set ===================== */
 function getPath(obj, path){ return path.split('.').reduce((o,p)=> (o==null?undefined:o[p]), obj); }
@@ -977,7 +993,11 @@ function renderHome(){
   const sections = getAllSections();
   const user = getCurrentUser();
   const quickButtons = sections.map(s=>`<button class="btn btn-primary btn-block" style="margin-bottom:8px;justify-content:flex-start;font-size:15px;padding:14px 16px;" data-action="new-record" data-section="${s.id}">${s.icon} + ${esc(t(s.name))}</button>`).join('');
-  const stats = sections.map(s=>`<div class="stat-card"><div class="ico">${s.icon}</div><div class="num">${getRecords(s.id).length}</div><div class="lbl">${esc(t(s.name))}</div></div>`).join('');
+  const stats = sections.map(s=>{
+    const bgImg = s.bgImage ? `style="background-image:url('${s.bgImage}');background-size:cover;background-position:center;position:relative;overflow:hidden;"` : '';
+    const overlay = s.bgImage ? `<div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(10,37,64,.7) 0%,rgba(30,95,168,.6) 100%);z-index:1;"></div>` : '';
+    return `<div class="stat-card" ${bgImg}>${overlay}<div class="ico" style="position:relative;z-index:2;${s.bgImage?'color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.3);':''}">${s.icon}</div><div class="num" style="position:relative;z-index:2;${s.bgImage?'color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.3);':''}">${getRecords(s.id).length}</div><div class="lbl" style="position:relative;z-index:2;${s.bgImage?'color:#fff;opacity:.95;':''}">${esc(t(s.name))}</div></div>`;
+  }).join('');
   return `
   <div class="card">
     <h2>${LANG==='ar'?'أهلاً'+(user?', '+esc(user.name):'')+' 👋':'Welcome'+(user?', '+esc(user.name):'')+' 👋'}</h2>
@@ -1314,12 +1334,15 @@ function unitDatalist(){
 
 async function hydrateAllImages(){
   const imgs = document.querySelectorAll('img[data-imgid]');
-  for(const img of imgs){
+  const promises = Array.from(imgs).map(async img=>{
     const id = img.getAttribute('data-imgid');
-    if(/^https?:\/\//.test(id)){ img.src = id; continue; }
-    const url = await getImage(id);
-    if(url) img.src = url;
-  }
+    if(/^https?:\/\//.test(id)){ img.src = id; return; }
+    try{
+      const url = await getImage(id);
+      if(url) img.src = url;
+    }catch(e){ console.warn('Image hydration failed:', e); }
+  });
+  await Promise.all(promises);
   const existingDatalist = document.getElementById('unitOptionsList');
   if(existingDatalist) existingDatalist.remove();
   const div = document.createElement('div'); div.innerHTML = unitDatalist(); document.body.appendChild(div.firstChild);
@@ -1666,8 +1689,9 @@ function loadScriptWithFallback(urls){
       if(i >= urls.length){ resolve(false); return; }
       const s = document.createElement('script');
       s.src = urls[i];
+      s.async = true;
       let settled = false;
-      const timeout = setTimeout(()=>{ if(!settled){ settled=true; s.remove(); i++; tryNext(); } }, 6000);
+      const timeout = setTimeout(()=>{ if(!settled){ settled=true; s.remove(); i++; tryNext(); } }, 8000);
       s.onload = ()=>{ if(!settled){ settled=true; clearTimeout(timeout); resolve(true); } };
       s.onerror = ()=>{ if(!settled){ settled=true; clearTimeout(timeout); s.remove(); i++; tryNext(); } };
       document.head.appendChild(s);
@@ -2458,9 +2482,16 @@ document.addEventListener('click', e=>{
     const rec = state.currentRecord;
     const missing = section.fields.filter(f=> f.required && (rec[f.key]===undefined || rec[f.key]===null || rec[f.key]===''));
     if(missing.length){ showToast(t(STR.requiredMissing)); return; }
-    saveRecordRemote(sectionId, rec);
-    showToast(t(STR.savedOk));
-    state.view='list'; render();
+    (async ()=>{
+      try{
+        await saveRecordRemote(sectionId, rec);
+        showToast(t(STR.savedOk));
+        state.view='list'; render();
+      }catch(err){
+        console.error('save-record error:', err);
+        showToast('Failed to save record. Check your internet connection.');
+      }
+    })();
   }
 
   else if(action==='add-group-item'){
