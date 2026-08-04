@@ -97,7 +97,7 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 .tab-btn.active{color:var(--teal-dark); background:var(--teal-light); font-weight:800;}
 
 /* Layout */
-.container{max-width:820px; margin:0 auto; padding:14px;}
+.container{max-width:820px; margin:0 auto; padding:14px; padding-bottom:calc(88px + 14px + env(safe-area-inset-bottom));}
 .card{background:var(--card); border-radius:var(--radius); padding:18px; margin-bottom:14px; box-shadow:var(--shadow-md); border:1px solid var(--border);}
 .card h2{margin:0 0 4px; font-size:17px; color:var(--navy); font-weight:800;}
 .card .desc{font-size:12.5px; color:var(--muted); margin-bottom:10px;}
@@ -688,7 +688,9 @@ const BUILTIN_SECTIONS = [
         compute:(r)=> pct(r.ncTreated, r.totalNC)},
       {key:'lossPercentOfBillQty', type:'computed', label:{ar:'نسبة الفاقد (Loss) في البوليصة بعد المعالجة', en:'Loss % of Bill Quantity (after treatment)'},
         compute:(r)=> pct(r.totalLoss, r.billQty)},
-      {key:'totalReback', type:'number', label:{ar:'Total Reback', en:'Total Reback'}},
+      {key:'shippingLine', type:'text', label:{ar:'خط الشحن (Shipping Line)', en:'Shipping Line'}},
+      {key:'readyForDispatch', type:'select', label:{ar:'جاهز للتوزيع', en:'Ready for Dispatch'},
+        options:[SEL('yes','نعم','Yes'), SEL('no','لا','No'), SEL('pending','قيد الانتظار','Pending')]},
       {key:'note', type:'textarea', label:{ar:'NOTE - ملاحظات عامة', en:'NOTE - General'}},
       {key:'images', type:'image', label:{ar:'صور البوليصة', en:'Bill Images'}}
     ]
@@ -717,6 +719,23 @@ const BUILTIN_SECTIONS = [
       {key:'tarpCover', type:'select', label:{ar:'مشمع غطاء الشاحنة', en:'Truck Cover Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
       {key:'inspectionResult', type:'select', label:{ar:'نتيجة الفحص', en:'Inspection Result'}, options:[SEL('accepted','مقبولة','Accepted'),SEL('rejected','مرفوضة','Rejected')]},
       {key:'remark', type:'textarea', label:{ar:'ملاحظات', en:'Remark'}},
+      {key:'images', type:'image', label:{ar:'صور', en:'Images'}}
+    ]
+  },
+  { id:'reback', builtin:true, icon:'📦♻️', name:{ar:'إعادة التغليف', en:'Reback'}, bgImage:'reback-bg.jpg',
+    listFields:['date','originalBL','rebackQty','rebackUnit'],
+    fields:[
+      {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
+      {key:'originalBL', type:'text', label:{ar:'رقم البوليصة الأصلية', en:'Original BL Number'}, required:true},
+      {key:'originalProduct', type:'text', label:{ar:'المنتج الأصلي', en:'Original Product'}},
+      {key:'rebackReason', type:'textarea', label:{ar:'سبب إعادة التغليف', en:'Reback Reason'}},
+      {key:'rebackQty', type:'number', label:{ar:'كمية إعادة التغليف', en:'Reback Quantity'}, required:true},
+      {key:'rebackUnit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
+      {key:'processedQty', type:'number', label:{ar:'الكمية المعالجة', en:'Processed Quantity'}},
+      {key:'processedPercent', type:'computed', label:{ar:'نسبة الكمية المعالجة', en:'Processed Quantity %'},
+        compute:(r)=> pct(r.processedQty, r.rebackQty)},
+      {key:'newBLNumber', type:'text', label:{ar:'رقم البوليصة الجديدة', en:'New BL Number'}},
+      {key:'notes', type:'textarea', label:{ar:'ملاحظات', en:'Notes'}},
       {key:'images', type:'image', label:{ar:'صور', en:'Images'}}
     ]
   }
