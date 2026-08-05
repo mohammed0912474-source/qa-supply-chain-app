@@ -14,11 +14,7 @@
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="dns-prefetch" href="https://api.imgbb.com">
-<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --navy:#0A2540; --navy2:#123A5E; --navy3:#0D3158;
@@ -97,7 +93,7 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 .tab-btn.active{color:var(--teal-dark); background:var(--teal-light); font-weight:800;}
 
 /* Layout */
-.container{max-width:820px; margin:0 auto; padding:14px; padding-bottom:calc(88px + 14px + env(safe-area-inset-bottom));}
+.container{max-width:820px; margin:0 auto; padding:14px;}
 .card{background:var(--card); border-radius:var(--radius); padding:18px; margin-bottom:14px; box-shadow:var(--shadow-md); border:1px solid var(--border);}
 .card h2{margin:0 0 4px; font-size:17px; color:var(--navy); font-weight:800;}
 .card .desc{font-size:12.5px; color:var(--muted); margin-bottom:10px;}
@@ -122,16 +118,6 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 .period-toggle button.active{background:var(--teal); color:#fff;}
 .chart-card{margin-top:6px;}
 .chart-card h3{font-size:13.5px; color:var(--navy2); margin:0 0 10px; font-weight:800;}
-
-/* Section backgrounds */
-.section-hero{position:relative;height:240px;border-radius:var(--radius);margin-bottom:16px;overflow:hidden;box-shadow:var(--shadow-lg);background-size:cover;background-position:center;}
-.section-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(10,37,64,.75) 0%,rgba(30,95,168,.65) 100%);z-index:1;}
-.section-hero .hero-content{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding:20px;color:#fff;}
-.section-hero .hero-title{font-size:28px;font-weight:900;margin:0;text-shadow:0 2px 8px rgba(0,0,0,.3);}
-.section-hero .hero-subtitle{font-size:13px;opacity:.9;margin-top:4px;text-shadow:0 1px 4px rgba(0,0,0,.2);}
-.section-hero.shipment-bg{background-image:url('shipment-bg.jpg');}
-.section-hero.trucks-bg{background-image:url('trucks-bg.jpg');}
-@media (max-width:600px){.section-hero{height:180px;}.section-hero .hero-title{font-size:22px;}}
 
 /* Buttons */
 .btn{border:none; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:700; display:inline-flex; align-items:center; gap:6px; transition:transform .08s, box-shadow .15s;}
@@ -228,22 +214,6 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
 .link-btn{background:none; border:none; color:var(--accent-dark); font-size:13px; font-weight:700; text-decoration:underline;}
 
-/* Chat Styles */
-.chat-container{display:flex; flex-direction:column; height:calc(100vh - 180px); background:#fff; border-radius:12px; overflow:hidden; border:1px solid var(--border); box-shadow:var(--shadow-md);}
-.chat-messages{flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; background:#f9fbfe;}
-.chat-msg{max-width:80%; padding:10px 14px; border-radius:18px; font-size:14px; position:relative; line-height:1.4; box-shadow:var(--shadow-sm);}
-.chat-msg.me{align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:4px;}
-.chat-msg.other{align-self:flex-start; background:#fff; color:var(--navy); border-bottom-left-radius:4px; border:1px solid var(--border);}
-.chat-msg .user{font-size:11px; font-weight:800; margin-bottom:4px; display:block; opacity:.85;}
-.chat-msg .time{font-size:9px; margin-top:4px; display:block; text-align:end; opacity:.7;}
-.chat-input-area{padding:12px; background:#fff; border-top:1px solid var(--border); display:flex; gap:8px;}
-.chat-input{flex:1; padding:10px 16px; border:1.5px solid var(--border); border-radius:24px; font-size:14px; outline:none; transition:border-color .2s;}
-.chat-input:focus{border-color:var(--accent);}
-.chat-send-btn{background:var(--accent); color:#fff; border:none; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .2s;}
-.chat-send-btn:active{transform:scale(.9);}
-.profile-pic-chat{width:24px; height:24px; border-radius:50%; object-fit:cover; margin-inline-end:6px; vertical-align:middle;}
-.profile-pic-chip{width:32px; height:32px; border-radius:50%; object-fit:cover; margin-inline-end:10px;}
-
 .lang-en [data-ar-only]{display:none;}
 .lang-ar [data-en-only]{display:none;}
 ::-webkit-scrollbar{height:6px;width:6px;}
@@ -310,49 +280,17 @@ const LOGO_SVG = `<svg width="22" height="22" viewBox="0 0 100 100" xmlns="http:
 
 /* رفع الصور لخدمة ImgBB المجانية عشان تتزامن الصور بين كل الأفراد من غير أي تكلفة على Firebase */
 const IMGBB_API_KEY = '2e40bd26cdd16811e0091eb15993b992';
-const IMGBB_FALLBACK_KEYS = ['9f7c3e8d5a2b1c4f6e9d2a5b8c1f4e7a', 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6'];
-let _currentImgbbKeyIndex = 0;
-
-async function uploadToImgBB(dataUrl, retryCount = 0){
+async function uploadToImgBB(dataUrl){
   try{
-    if(!dataUrl || typeof dataUrl !== 'string') return null;
-    const parts = dataUrl.split(',');
-    if(parts.length < 2) return null;
-    const base64 = parts[1];
-    if(base64.length > 20971520) return null; // 20MB limit
-    
-    const apiKey = retryCount > 0 && retryCount <= IMGBB_FALLBACK_KEYS.length ? IMGBB_FALLBACK_KEYS[retryCount - 1] : IMGBB_API_KEY;
+    const base64 = dataUrl.split(',')[1];
     const formData = new FormData();
-    formData.append('key', apiKey);
+    formData.append('key', IMGBB_API_KEY);
     formData.append('image', base64);
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    
-    const res = await fetch('https://api.imgbb.com/1/upload', { 
-      method:'POST', 
-      body: formData,
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await fetch('https://api.imgbb.com/1/upload', { method:'POST', body: formData });
     const json = await res.json();
     if(json && json.success && json.data && json.data.url) return json.data.url;
-    if(json && json.error && retryCount < IMGBB_FALLBACK_KEYS.length + 1) {
-      console.warn(`ImgBB upload failed (attempt ${retryCount + 1}):`, json.error);
-      await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
-      return uploadToImgBB(dataUrl, retryCount + 1);
-    }
     return null;
-  }catch(e){
-    console.warn(`ImgBB upload failed (attempt ${retryCount + 1}):`, e.message);
-    if(retryCount < IMGBB_FALLBACK_KEYS.length + 1) {
-      await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
-      return uploadToImgBB(dataUrl, retryCount + 1);
-    }
-    return null;
-  }
+  }catch(e){ console.warn('ImgBB upload failed', e); return null; }
 }
 const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, search:'', dateFrom:'', dateTo:'', builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null, formTemp:{}, builtinFieldTarget:null };
 
@@ -517,23 +455,8 @@ const STR = {
   appName:{ar:'منظومة الجودة - سلسلة الإمداد', en:'QA Supply Chain'},
   home:{ar:'الرئيسية', en:'Home'},
   dashboard:{ar:'التحليلات', en:'Dashboard'},
-  containers:{ar:'الشحنات', en:'Shippment'},
-  trucks:{ar:'الشحن', en:'Loading'},
-  rebacking:{ar:'معالجة المنتجات', en:'Rebacking'},
-  chat:{ar:'الدردشة', en:'Chat'},
-  profilePic:{ar:'صورة الملف الشخصي', en:'Profile Picture'},
-  uploadPhoto:{ar:'رفع صورة', en:'Upload Photo'},
-  chatPlaceholder:{ar:'اكتب رسالة...', en:'Type a message...'},
-  send:{ar:'إرسال', en:'Send'},
-  adminMonitoring:{ar:'مراقبة المسؤول', en:'Admin Monitoring'},
-  newRecordNotify:{ar:'سجل جديد مضاف!', en:'New record added!'},
-  newTruckNotify:{ar:'شاحنة جديدة مضافة!', en:'New truck added!'},
-  newRebackingNotify:{ar:'عملية معالجة جديدة!', en:'New rebacking process!'},
-  monitoring:{ar:'مراقبة النظام والنشاط', en:'System & Activity Monitoring'},
-  recentActivity:{ar:'النشاط الأخير', en:'Recent Activity'},
-  loggedInAs:{ar:'مسجل دخول باسم', en:'Logged in as'},
-  logout:{ar:'تسجيل الخروج', en:'Logout'},
-  changePic:{ar:'تغيير الصورة', en:'Change Photo'},
+  containers:{ar:'فحص الحاويات', en:'Container Inspection'},
+  trucks:{ar:'فحص الشاحنات', en:'Truck Inspection'},
   monthly:{ar:'التقرير الشهري', en:'Monthly Report'},
   builder:{ar:'الإعدادات', en:'Settings'},
   add:{ar:'إضافة', en:'Add'},
@@ -671,14 +594,13 @@ const SEL = (val, labelAr, labelEn) => ({value:val, label:{ar:labelAr, en:labelE
 
 /* ===================== Built-in Section Schemas ===================== */
 const BUILTIN_SECTIONS = [
-  { id:'containers', builtin:true, icon:'📦', name:{ar:'Shipment', en:'Shipment'}, bgImage:'shipment-bg.jpg',
+  { id:'containers', builtin:true, icon:'📦', name:{ar:'فحص الحاويات', en:'Container Inspection'},
     listFields:['date','blNumber','productDesc','operationType'],
     fields:[
       {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
       {key:'blNumber', type:'text', label:{ar:'رقم البوليصة', en:'BL Number'}, required:true},
       {key:'transportMethod', type:'select', label:{ar:'طريقة النقل', en:'Transport Method'},
         options:[SEL('air','عبر المطار','By Air'), SEL('sea','عبر الحاويات (بحري)','By Sea/Container'), SEL('road','عبر الطريق','By Road')]},
-      {key:'shippingLine', type:'text', label:{ar:'الناقل البحري (Shipping Line)', en:'Shipping Line'}},
       {key:'transportComment', type:'text', label:{ar:'تعليق على طريقة النقل (إن وجد)', en:'Transport comment (if any)'}},
       {key:'containerCount', type:'number', label:{ar:'عدد الحاويات', en:'Number of Containers'}},
       {key:'billQty', type:'number', label:{ar:'الكمية الكاملة بالبوليصة', en:'Total Quantity per Bill'}},
@@ -720,13 +642,12 @@ const BUILTIN_SECTIONS = [
         compute:(r)=> pct(r.ncTreated, r.totalNC)},
       {key:'lossPercentOfBillQty', type:'computed', label:{ar:'نسبة الفاقد (Loss) في البوليصة بعد المعالجة', en:'Loss % of Bill Quantity (after treatment)'},
         compute:(r)=> pct(r.totalLoss, r.billQty)},
-      {key:'readyForDispatch', type:'select', label:{ar:'جاهز للتوزيع', en:'Ready for Dispatch'},
-        options:[SEL('yes','نعم','Yes'), SEL('no','لا','No'), SEL('pending','قيد الانتظار','Pending')]},
+      {key:'totalReback', type:'number', label:{ar:'Total Reback', en:'Total Reback'}},
       {key:'note', type:'textarea', label:{ar:'NOTE - ملاحظات عامة', en:'NOTE - General'}},
       {key:'images', type:'image', label:{ar:'صور البوليصة', en:'Bill Images'}}
     ]
   },
-  { id:'trucks', builtin:true, icon:'🚚', name:{ar:'فحص الشاحنات', en:'Truck Inspection'}, bgImage:'trucks-bg.jpg',
+  { id:'trucks', builtin:true, icon:'🚚', name:{ar:'فحص الشاحنات', en:'Truck Inspection'},
     listFields:['date','truckNo','destination','inspectionResult'],
     fields:[
       {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
@@ -739,7 +660,7 @@ const BUILTIN_SECTIONS = [
       {key:'products', type:'group', label:{ar:'المنتجات المحمّلة (أضف بند لكل منتج)', en:'Products Loaded (add an item per product)'},
         fields:[
           {key:'product', type:'text', label:{ar:'المنتج', en:'Product'}},
-          {key:'qty', type:'text', label:{ar:'الكمية (يدوياً)', en:'Qty (Manual)'}},
+          {key:'qty', type:'number', label:{ar:'الكمية', en:'Qty'}},
           {key:'unit', type:'unit', label:{ar:'الوحدة (اكتبها يدوياً لو مختلفة)', en:'Unit (type manually if different)'}}
         ]},
       {key:'orderType', type:'select', label:{ar:'نوع الطلب', en:'Order Type'},
@@ -752,25 +673,6 @@ const BUILTIN_SECTIONS = [
       {key:'remark', type:'textarea', label:{ar:'ملاحظات', en:'Remark'}},
       {key:'images', type:'image', label:{ar:'صور', en:'Images'}}
     ]
-  },
-  { id:'rebacking', builtin:true, icon:'📦♻️', name:{ar:'معالجة المنتجات', en:'Rebacking'}, bgImage:'reback-bg.jpg',
-    listFields:['date','blNumber','product','processedPercent'],
-    fields:[
-      {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
-      {key:'location', type:'text', label:{ar:'الموقع', en:'Location'}},
-      {key:'blNumber', type:'text', label:{ar:'رقم البوليصة', en:'BL Number'}, required:true},
-      {key:'product', type:'text', label:{ar:'المنتج', en:'Product'}},
-      {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
-      {key:'mergeReason', type:'textarea', label:{ar:'سبب الدمج', en:'Merge Reason'}},
-      {key:'mergeType', type:'text', label:{ar:'نوع الدمج', en:'Merge Type'}},
-      {key:'mergeQty', type:'number', label:{ar:'كمية الدمج', en:'Merge Quantity'}, required:true},
-      {key:'processedQty', type:'number', label:{ar:'الكمية المعالجة', en:'Processed Quantity'}},
-      {key:'damagedQty', type:'number', label:{ar:'الكمية التالفة', en:'Damaged Quantity'}},
-      {key:'processedPercent', type:'computed', label:{ar:'نسبة المعالجة', en:'Processed %'},
-        compute:(r)=> pct(r.processedQty, r.mergeQty)},
-      {key:'notes', type:'textarea', label:{ar:'ملاحظات', en:'Notes'}},
-      {key:'images', type:'image', label:{ar:'صور', en:'Images'}}
-    ]
   }
 ];
 
@@ -780,7 +682,6 @@ const BUILTIN_SECTIONS = [
 const CUSTOM_SECTIONS_CACHE = { list: [] };
 const RECORDS_CACHE = {};        // { sectionId: [records...] }
 const USERS_CACHE = { list: [] };
-const CHAT_CACHE = { list: [] };
 const META_CACHE = { masterCode: null, adminPasswordHash: null, adminBiometricCredId: null };
 const ACCESS_LOG_CACHE = { list: [] };
 const RESET_REQUESTS_CACHE = { list: [] };
@@ -861,27 +762,8 @@ function subscribeSection(sectionId){
   _subscribedSections.add(sectionId);
   RECORDS_CACHE[sectionId] = RECORDS_CACHE[sectionId] || [];
   qaCol('records_'+sectionId+'/items').onSnapshot(snap=>{
-    const isFirstLoad = RECORDS_CACHE[sectionId].length === 0;
     const arr = []; snap.forEach(doc=> arr.push(doc.data()));
     RECORDS_CACHE[sectionId] = arr;
-    
-    if (_appBooted && !isFirstLoad) {
-      snap.docChanges().forEach(change => {
-        if (change.type === 'added') {
-          const rec = change.doc.data();
-          // لا نظهر إشعار لو إحنا اللي ضفنا السجل (عشان showToast بيظهر أصلاً في saveRecord)
-          if (rec.userId && rec.userId !== state.userId) {
-            let msg = '';
-            if (sectionId === 'containers') msg = esc(t(STR.newRecordNotify));
-            else if (sectionId === 'trucks') msg = esc(t(STR.newTruckNotify));
-            else if (sectionId === 'rebacking') msg = esc(t(STR.newRebackingNotify));
-            else msg = (LANG === 'ar' ? 'سجل جديد في ' : 'New record in ') + sectionId;
-            showToast(msg);
-          }
-        }
-      });
-    }
-    
     if(_appBooted && !state.auth && state.view!=='form') scheduleRender();
   }, err=> console.warn('records sync error', sectionId, err));
 }
@@ -899,27 +781,7 @@ function subscribeAllCoreData(){
   subscribeResetRequests();
   subscribeCustomSections();
   subscribeBuiltinExtensions();
-  subscribeChat();
   BUILTIN_SECTIONS.forEach(s=> subscribeSection(s.id));
-}
-
-function subscribeChat() {
-  qaCol('chatMessages/items').orderBy('time', 'asc').limitToLast(100).onSnapshot(snap => {
-    const isFirstLoad = CHAT_CACHE.list.length === 0;
-    CHAT_CACHE.list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (state.view === 'chat') scheduleRender();
-    
-    if (!isFirstLoad && state.view !== 'chat') {
-      snap.docChanges().forEach(change => {
-        if (change.type === 'added') {
-          const msg = change.doc.data();
-          if (msg.userId !== state.userId) {
-            showToast((LANG === 'ar' ? 'رسالة جديدة من ' : 'New message from ') + msg.userName);
-          }
-        }
-      });
-    }
-  }, err => console.warn('Chat sync error', err));
 }
 
 function getCustomSections(){ return CUSTOM_SECTIONS_CACHE.list; }
@@ -950,22 +812,8 @@ function getSection(id){ return getAllSections().find(s=>s.id===id); }
 
 /* ===================== Records storage ===================== */
 function getRecords(sectionId){ return RECORDS_CACHE[sectionId] || []; }
-function saveRecordRemote(sectionId, record){
-  if(!record || !record.id) return Promise.reject(new Error('Invalid record'));
-  const user = getCurrentUser();
-  if (user) record.userId = user.id;
-  return qaCol('records_'+sectionId+'/items').doc(record.id).set(record).catch(err=>{
-    console.error('saveRecordRemote failed:', err);
-    throw err;
-  });
-}
-function deleteRecordRemote(sectionId, id){
-  if(!id) return Promise.reject(new Error('Invalid id'));
-  return qaCol('records_'+sectionId+'/items').doc(id).delete().catch(err=>{
-    console.error('deleteRecordRemote failed:', err);
-    throw err;
-  });
-}
+function saveRecordRemote(sectionId, record){ return qaCol('records_'+sectionId+'/items').doc(record.id).set(record); }
+function deleteRecordRemote(sectionId, id){ return qaCol('records_'+sectionId+'/items').doc(id).delete(); }
 
 /* ===================== Path get/set ===================== */
 function getPath(obj, path){ return path.split('.').reduce((o,p)=> (o==null?undefined:o[p]), obj); }
@@ -1025,7 +873,6 @@ function render(){
   let html = renderHeader() + '<div class="container">';
   if(state.view==='home') html += renderHome();
   else if(state.view==='dashboard') html += renderDashboard();
-  else if(state.view==='chat') html += renderChat();
   else if(state.view==='list') html += renderList(state.viewSectionId);
   else if(state.view==='form') html += renderForm(state.viewSectionId);
   else if(state.view==='monthly') html += renderMonthly();
@@ -1062,7 +909,6 @@ function renderHeader(){
 const NAV_ICONS = {
   home: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5L12 4l9 7.5"/><path d="M5 10v9a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1v-9"/></svg>`,
   dashboard: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="10"/></svg>`,
-  chat: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`,
   monthly: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>`,
   files: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>`,
   builder: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 005 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`
@@ -1072,7 +918,6 @@ function renderTabbar(){
   const items = [
     {id:'home', view:'home', icon:NAV_ICONS.home, label:STR.home},
     {id:'dashboard', view:'dashboard', icon:NAV_ICONS.dashboard, label:STR.dashboard},
-    {id:'chat', view:'chat', icon:NAV_ICONS.chat, label:STR.chat},
     ...getAllSections().map(s=>({id:s.id, view:'list', sectionId:s.id, icon:s.icon, label:s.name})),
     {id:'monthly', view:'monthly', icon:NAV_ICONS.monthly, label:STR.monthly},
     {id:'files', view:'files', icon:NAV_ICONS.files, label:STR.filesTab},
@@ -1090,11 +935,7 @@ function renderHome(){
   const sections = getAllSections();
   const user = getCurrentUser();
   const quickButtons = sections.map(s=>`<button class="btn btn-primary btn-block" style="margin-bottom:8px;justify-content:flex-start;font-size:15px;padding:14px 16px;" data-action="new-record" data-section="${s.id}">${s.icon} + ${esc(t(s.name))}</button>`).join('');
-  const stats = sections.map(s=>{
-    const bgImg = s.bgImage ? `style="background-image:url('${s.bgImage}');background-size:cover;background-position:center;position:relative;overflow:hidden;"` : '';
-    const overlay = s.bgImage ? `<div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(10,37,64,.7) 0%,rgba(30,95,168,.6) 100%);z-index:1;"></div>` : '';
-    return `<div class="stat-card" ${bgImg}>${overlay}<div class="ico" style="position:relative;z-index:2;${s.bgImage?'color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.3);':''}">${s.icon}</div><div class="num" style="position:relative;z-index:2;${s.bgImage?'color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.3);':''}">${getRecords(s.id).length}</div><div class="lbl" style="position:relative;z-index:2;${s.bgImage?'color:#fff;opacity:.95;':''}">${esc(t(s.name))}</div></div>`;
-  }).join('');
+  const stats = sections.map(s=>`<div class="stat-card"><div class="ico">${s.icon}</div><div class="num">${getRecords(s.id).length}</div><div class="lbl">${esc(t(s.name))}</div></div>`).join('');
   return `
   <div class="card">
     <h2>${LANG==='ar'?'أهلاً'+(user?', '+esc(user.name):'')+' 👋':'Welcome'+(user?', '+esc(user.name):'')+' 👋'}</h2>
@@ -1173,42 +1014,6 @@ function renderDonut(parts){
     <div>${legend}</div>
   </div>`;
 }
-function renderChat() {
-  const user = getCurrentUser();
-  const messages = CHAT_CACHE.list;
-  
-  setTimeout(() => {
-    const el = document.querySelector('.chat-messages');
-    if (el) el.scrollTop = el.scrollHeight;
-  }, 100);
-
-  const msgsHtml = messages.map(m => {
-    const isMe = m.userId === user.id;
-    const u = USERS_CACHE.list.find(u => u.id === m.userId);
-    const pic = u && u.profilePic ? `<img src="${u.profilePic}" class="profile-pic-chat">` : '';
-    return `
-      <div class="chat-msg ${isMe ? 'me' : 'other'}">
-        <span class="user">${pic}${esc(m.userName)}</span>
-        <div class="text">${esc(m.text)}</div>
-        <span class="time">${new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <div class="section-title"><h2>💬 ${esc(t(STR.chat))}</h2></div>
-    <div class="chat-container">
-      <div class="chat-messages">${msgsHtml}</div>
-      <div class="chat-input-area">
-        <input type="text" class="chat-input" placeholder="${esc(t(STR.chatPlaceholder))}" id="chatInput">
-        <button class="chat-send-btn" data-action="send-chat">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
-      </div>
-    </div>
-  `;
-}
-
 function renderDashboard(){
   const period = state.dashboardPeriod;
   let containers = getRecords('containers');
@@ -1325,11 +1130,8 @@ function renderList(sectionId){
     </div>`;
   }).join('');
 
-  const bgClass = section.bgImage ? (section.id === 'containers' ? 'shipment-bg' : section.id === 'trucks' ? 'trucks-bg' : '') : '';
-  const heroHtml = section.bgImage ? `<div class="section-hero ${bgClass}" style="background-image:url('${section.bgImage}')"><div class="hero-content"><div class="hero-title">${esc(t(section.name))}</div><div class="hero-subtitle">${section.id === 'containers' ? 'Shipment Inspection & Quality Assurance' : 'Truck Inspection & Logistics'}</div></div></div>` : '';
   return `
   <div class="card">
-    ${heroHtml}
     <div class="section-title">
       <h2>${section.icon} ${esc(t(section.name))}</h2>
       <button class="btn btn-primary" data-action="new-record" data-section="${sectionId}">+ ${esc(t(STR.add))}</button>
@@ -1365,7 +1167,7 @@ function renderForm(sectionId){
 
 function renderImageField(path, arr, labelHtml){
   arr = asArray(arr);
-  const thumbs = arr.map((imgId,idx)=>`<div class="img-thumb"><img data-imgid="${imgId}" loading="lazy" alt=""><button class="rm" data-action="remove-image" data-field="${esc(path)}" data-index="${idx}">✕</button></div>`).join('');
+  const thumbs = arr.map((imgId,idx)=>`<div class="img-thumb"><img data-imgid="${imgId}" alt=""><button class="rm" data-action="remove-image" data-field="${esc(path)}" data-index="${idx}">✕</button></div>`).join('');
   return `<div class="field field-full">${labelHtml}
     <div class="img-grid">${thumbs}
       <label class="file-btn">📷 ${esc(t(STR.addPhotos))}<input type="file" accept="image/*" multiple data-action="add-image" data-field="${esc(path)}"></label>
@@ -1467,15 +1269,12 @@ function unitDatalist(){
 
 async function hydrateAllImages(){
   const imgs = document.querySelectorAll('img[data-imgid]');
-  const promises = Array.from(imgs).map(async img=>{
+  for(const img of imgs){
     const id = img.getAttribute('data-imgid');
-    if(/^https?:\/\//.test(id)){ img.src = id; return; }
-    try{
-      const url = await getImage(id);
-      if(url) img.src = url;
-    }catch(e){ console.warn('Image hydration failed:', e); }
-  });
-  await Promise.all(promises);
+    if(/^https?:\/\//.test(id)){ img.src = id; continue; }
+    const url = await getImage(id);
+    if(url) img.src = url;
+  }
   const existingDatalist = document.getElementById('unitOptionsList');
   if(existingDatalist) existingDatalist.remove();
   const div = document.createElement('div'); div.innerHTML = unitDatalist(); document.body.appendChild(div.firstChild);
@@ -1605,20 +1404,6 @@ function renderAdminPanel(){
     </div>` : ''}
     <div class="desc">${esc(t(STR.registeredUsers))}</div>
     ${rows || `<div class="empty-state">${esc(t(STR.noUsers))}</div>`}
-
-    <div class="section-title" style="margin-top:20px;"><h3>🛡️ ${esc(t(STR.monitoring))}</h3></div>
-    <div class="desc" style="margin-bottom:10px;">${esc(t(STR.recentActivity))}</div>
-    <div style="max-height:300px; overflow-y:auto; background:#f9f9f9; padding:10px; border-radius:8px; border:1px solid var(--border);">
-      ${ACCESS_LOG_CACHE.list.slice(0, 50).map(l => `
-        <div style="font-size:12px; padding:8px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <div style="font-weight:700; color:var(--navy);">${esc(l.name)} <span style="font-weight:400; opacity:.7;">(${esc(l.role)})</span></div>
-            <div style="opacity:.6;">${esc(l.type)} · ${new Date(l.time).toLocaleString()}</div>
-          </div>
-          <div class="status-dot" style="background:${l.type==='login'?'var(--success)':'var(--accent)'}"></div>
-        </div>
-      `).join('') || '<div class="empty-state">No activity yet</div>'}
-    </div>
   </div>`;
 }
 
@@ -1836,9 +1621,8 @@ function loadScriptWithFallback(urls){
       if(i >= urls.length){ resolve(false); return; }
       const s = document.createElement('script');
       s.src = urls[i];
-      s.async = true;
       let settled = false;
-      const timeout = setTimeout(()=>{ if(!settled){ settled=true; s.remove(); i++; tryNext(); } }, 8000);
+      const timeout = setTimeout(()=>{ if(!settled){ settled=true; s.remove(); i++; tryNext(); } }, 6000);
       s.onload = ()=>{ if(!settled){ settled=true; clearTimeout(timeout); resolve(true); } };
       s.onerror = ()=>{ if(!settled){ settled=true; clearTimeout(timeout); s.remove(); i++; tryNext(); } };
       document.head.appendChild(s);
@@ -2038,44 +1822,36 @@ function writeAndPrintWindow(printWindow, htmlDocString){
 async function generatePdfBlobAndStore(htmlDocString, filename){
   const container = document.createElement('iframe');
   container.style.position='fixed'; container.style.left='-9999px'; container.style.top='0';
-    container.style.width='800px'; container.style.height='auto'; container.style.border='none';
-    container.style.visibility='hidden';
+  container.style.width='780px'; container.style.height='100px'; container.style.border='none';
   document.body.appendChild(container);
   try{
     container.srcdoc = htmlDocString;
-    await new Promise(res=>{ 
-      let loaded = false;
-      container.onload = () => { loaded = true; res(); };
-      setTimeout(() => { if(!loaded) res(); }, 3000);
-    });
+    await new Promise(res=>{ container.onload = res; setTimeout(res, 2000); });
     const doc = container.contentDocument;
-    if(!doc) throw new Error('Failed to access iframe document');
     const body = doc.body;
-    if(!body) throw new Error('Failed to access iframe body');
-    
     const imgs = Array.from(body.querySelectorAll('img'));
     await Promise.all(imgs.map(img=>{
       if(img.complete) return img.decode ? img.decode().catch(()=>{}) : Promise.resolve();
-      return new Promise(res=>{ img.onload=res; img.onerror=res; setTimeout(res, 5000); });
+      return new Promise(res=>{ img.onload=res; img.onerror=res; setTimeout(res, 4000); });
     }));
-    await new Promise(res=>setTimeout(res, 200));
+    await new Promise(res=>setTimeout(res, 100));
 
-    const canvas = await window.html2canvas(body, {scale:2, useCORS:true, backgroundColor:'#ffffff', windowWidth:800, allowTaint:true, logging:false, letterRendering:true});
+    const canvas = await window.html2canvas(body, {scale:2, useCORS:true, backgroundColor:'#ffffff', windowWidth:780});
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p','pt','a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth - 20;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const imgData = canvas.toDataURL('image/jpeg', 0.85);
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
     let heightLeft = imgHeight, position = 0;
-    pdf.addImage(imgData, 'JPEG', 10, position + 10, imgWidth, imgHeight);
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
     heightLeft -= pageHeight;
     while(heightLeft > 0){
       position = heightLeft - imgHeight;
       pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 10, position + 10, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
     }
     const dataUri = pdf.output('datauristring');
@@ -2167,14 +1943,7 @@ function markUserKnownOnThisDevice(userId){
 function renderWelcomeScreen(){
   const knownIds = getDeviceKnownUserIds();
   const users = getUsers().filter(u=>knownIds.includes(u.id));
-  const chips = users.map(u=>`
-    <button class="user-chip" data-action="auth-pick-user" data-id="${u.id}">
-      <div style="display:flex;align-items:center;">
-        ${u.profilePic ? `<img src="${u.profilePic}" class="profile-pic-chip">` : `<div class="profile-pic-chip" style="background:var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;">👤</div>`}
-        <div><div class="nm">${esc(u.name)}</div><div class="rl">${esc(u.role)}</div></div>
-      </div>
-      <span>➡️</span>
-    </button>`).join('');
+  const chips = users.map(u=>`<button class="user-chip" data-action="auth-pick-user" data-id="${u.id}"><span><span class="nm">${esc(u.name)}</span><br><span class="rl">${esc(u.role||'')}</span></span><span>›</span></button>`).join('');
   return `
   <div class="auth-logo">🛡️</div>
   <div class="auth-title">${esc(t(STR.welcomeTitle))}</div>
@@ -2214,14 +1983,6 @@ function renderRegisterScreen(){
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.name))}</label><input type="text" id="regName" value="${esc(state.formTemp.regName||'')}"></div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.role))}</label>
     <select id="regRole">${ROLE_OPTIONS.map(r=>`<option value="${esc(r.v)}" ${(state.formTemp.regRole||ROLE_OPTIONS[0].v)===r.v?'selected':''}>${esc(t(r.l))}</option>`).join('')}</select>
-  </div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.profilePic))}</label>
-    <div style="display:flex; align-items:center; gap:10px;">
-      <div id="regPicPreview" style="width:50px; height:50px; border-radius:50%; background:#eee; overflow:hidden; border:1px solid var(--border); display:flex; align-items:center; justify-content:center;">
-        ${state.regTempPic ? `<img src="${state.regTempPic}" style="width:100%;height:100%;object-fit:cover;">` : '👤'}
-      </div>
-      <label class="file-btn"><input type="file" accept="image/*" data-action="auth-upload-pic">📷 ${esc(t(STR.uploadPhoto))}</label>
-    </div>
   </div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.choosePassword))}</label><input type="password" id="regPass" value="${esc(state.formTemp.regPass||'')}"></div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="regPass2" value="${esc(state.formTemp.regPass2||'')}"></div>
@@ -2268,13 +2029,7 @@ function showAccountModal(){
   const user = getCurrentUser();
   const overlay = document.createElement('div'); overlay.className='modal-overlay';
   overlay.innerHTML = `<div class="modal-box">
-    <h3>👤 ${esc(t(STR.accessLog))}</h3>
-    <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
-      <div style="width:80px; height:80px; border-radius:50%; background:#eee; overflow:hidden; border:2px solid var(--accent); margin-bottom:10px; display:flex; align-items:center; justify-content:center; font-size:32px;">
-        ${user && user.profilePic ? `<img src="${user.profilePic}" style="width:100%;height:100%;object-fit:cover;">` : '👤'}
-      </div>
-      <label class="file-btn" style="font-size:12px; padding:6px 12px;"><input type="file" accept="image/*" data-action="auth-update-profile-pic">📷 ${esc(t(STR.changePic))}</label>
-    </div>
+    <h3>🔑 ${esc(t(STR.accessLog))}</h3>
     <div class="record-card"><div class="main">${esc(t(STR.loggedInAs))}: ${esc(user?user.name:'')}</div><div class="meta">${esc(user?(user.role||''):'')}</div></div>
     <button class="btn btn-danger btn-block" style="margin-top:10px;" data-action="auth-logout">${esc(t(STR.logout))}</button>
     <button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="close-modal">${esc(t(STR.cancel))}</button>
@@ -2325,94 +2080,51 @@ document.addEventListener('change', e=>{
   const bf = el.getAttribute('data-builder-field');
   if(bf==='type'){ const idx = parseInt(el.getAttribute('data-index'),10); state.builderFields[idx].type = el.value; render(); }
 
-  if(el.getAttribute('data-action')==='auth-upload-pic'){
-    const file = el.files[0];
-    if(!file) return;
-    showToast(t(STR.addingPhotos));
-    uploadToImgBB(file).then(url => {
-      state.regTempPic = url;
-      render();
-      showToast(t(STR.photosAdded));
-    }).catch(() => showToast(t(STR.imageSaveFailed)));
-    return;
-  }
   if(el.getAttribute('data-action')==='add-image'){
     const path = el.getAttribute('data-field');
     const files = Array.from(el.files||[]);
-    if(!files.length) return;
-    
+    let remaining = files.length;
+    if(!remaining) return;
     const recordRef = state.currentRecord;
     const sectionIdRef = state.viewSectionId;
-    let remaining = files.length;
-    let successCount = 0;
-    
     showToast(t(STR.addingPhotos));
-    
-    files.forEach((file, fileIdx) => {
-      if(file.size > 50 * 1024 * 1024) {
-        console.warn(`File ${fileIdx} too large: ${file.size} bytes`);
-        remaining--;
-        if(remaining === 0) { render(); showToast(t(STR.photosAdded)); }
-        return;
-      }
-      
+    files.forEach(file=>{
       const reader = new FileReader();
-      reader.onload = async () => {
-        try {
+      reader.onload = async ()=>{
+        try{
           const compressed = await compressImageDataUrl(reader.result, 1600, 0.82);
-          if(!compressed) throw new Error('Compression failed');
-          
           const tempId = uid();
           await saveImage(tempId, compressed);
-          
           const arr = getPath(recordRef, path) || [];
           arr.push(tempId);
           setPath(recordRef, path, arr);
-          successCount++;
-          
           remaining--;
-          if(remaining === 0) { 
-            render(); 
-            showToast(successCount === files.length ? t(STR.photosAdded) : `${successCount}/${files.length} ${t(STR.photosAdded)}`);
-          }
+          if(remaining===0){ render(); showToast(t(STR.photosAdded)); }
 
           /* رفع في الخلفية لخدمة ImgBB عشان الصورة تظهر لكل الأفراد */
-          (async () => {
-            try {
-              const url = await uploadToImgBB(compressed);
-              if(!url) {
-                console.warn(`Failed to upload image ${fileIdx} to ImgBB`);
-                return;
-              }
-              const arr2 = getPath(recordRef, path) || [];
-              const idx = arr2.indexOf(tempId);
-              if(idx === -1) return;
-              arr2[idx] = url;
-              setPath(recordRef, path, arr2);
-              const imgEl = document.querySelector(`img[data-imgid="${tempId}"]`);
-              if(imgEl) { 
-                imgEl.src = url; 
-                imgEl.setAttribute('data-imgid', url); 
-              }
-              if(recordRef && recordRef.id) { 
-                await saveRecordRemote(sectionIdRef, recordRef).catch(err => console.warn('Save after upload failed:', err)); 
-              }
-            } catch(uploadErr) {
-              console.warn(`Upload error for image ${fileIdx}:`, uploadErr);
-            }
-          })();
-        } catch(err) {
-          console.error('add-image processing failed:', err);
+          uploadToImgBB(compressed).then(url=>{
+            if(!url) return;
+            const arr2 = getPath(recordRef, path) || [];
+            const idx = arr2.indexOf(tempId);
+            if(idx===-1) return;
+            arr2[idx] = url;
+            setPath(recordRef, path, arr2);
+            const imgEl = document.querySelector(`img[data-imgid="${tempId}"]`);
+            if(imgEl){ imgEl.src = url; imgEl.setAttribute('data-imgid', url); }
+            if(recordRef && recordRef.id){ saveRecordRemote(sectionIdRef, recordRef).catch(()=>{}); }
+          }).catch(()=>{});
+        }catch(err){
+          console.warn('add-image failed', err);
           showToast(t(STR.imageSaveFailed));
           remaining--;
-          if(remaining === 0) render();
+          if(remaining===0) render();
         }
       };
-      reader.onerror = (err) => {
-        console.error('file read failed:', err);
+      reader.onerror = ()=>{
+        console.warn('file read failed');
         showToast(t(STR.imageSaveFailed));
         remaining--;
-        if(remaining === 0) render();
+        if(remaining===0) render();
       };
       reader.readAsDataURL(file);
     });
@@ -2429,26 +2141,6 @@ document.addEventListener('click', e=>{
   const el = e.target.closest('[data-action]');
   if(!el) return;
   const action = el.getAttribute('data-action');
-
-  /* ---- Chat actions ---- */
-  if(action==='send-chat'){
-    const input = document.getElementById('chatInput');
-    const text = (input.value||'').trim();
-    if(!text) return;
-    const user = getCurrentUser();
-    qaCol('chatMessages/items').doc(uid()).set({
-      userId: user.id,
-      userName: user.name,
-      text: text,
-      time: new Date().toISOString()
-    }).then(() => {
-      input.value = '';
-    }).catch(err => {
-      console.warn('Send chat error', err);
-      showToast(LANG==='ar'?'فشل الإرسال':'Failed to send');
-    });
-    return;
-  }
 
   /* ---- Auth actions ---- */
   if(action==='auth-goto'){
@@ -2468,21 +2160,6 @@ document.addEventListener('click', e=>{
     return;
   }
   if(action==='auth-switch'){ state.auth = {screen:'welcome'}; render(); return; }
-  if(action==='auth-update-profile-pic'){
-    const file = el.files[0];
-    if(!file) return;
-    showToast(t(STR.addingPhotos));
-    uploadToImgBB(file).then(url => {
-      const user = getCurrentUser();
-      if(user){
-        user.profilePic = url;
-        saveUserRemote(user);
-        render();
-        showToast(t(STR.photosAdded));
-      }
-    }).catch(() => showToast(t(STR.imageSaveFailed)));
-    return;
-  }
   if(action==='auth-request-reset'){
     const targetId = state.auth.targetUserId;
     const u = getUsers().find(x=>x.id===targetId);
@@ -2524,18 +2201,13 @@ document.addEventListener('click', e=>{
       if(pass.length<4){ showToast(t(STR.passwordTooShort)); return; }
       if(pass!==pass2){ showToast(t(STR.passwordMismatch)); return; }
       const passwordHash = await sha256Hex(pass);
-      const user = { 
-        id:uid(), name, role, passwordHash, 
-        biometricCredId: state.regTempBiometric||null, 
-        profilePic: state.regTempPic || null,
-        createdAt:new Date().toISOString() 
-      };
+      const user = { id:uid(), name, role, passwordHash, biometricCredId: state.regTempBiometric||null, createdAt:new Date().toISOString() };
       await saveUserRemote(user);
       Store.set('qa_currentUserId', user.id);
       markUserKnownOnThisDevice(user.id);
       pushAccessLog({name, role, time:new Date().toISOString(), type:'register'});
       sessionStorage.setItem('qa_unlocked','1');
-      state.regTempBiometric = null; state.regTempPic = null; state.auth = null; state.view='home'; state.formTemp = {};
+      state.regTempBiometric = null; state.auth = null; state.view='home'; state.formTemp = {};
       showToast(t(STR.savedOk)); render();
     })();
     return;
@@ -2701,16 +2373,9 @@ document.addEventListener('click', e=>{
     const rec = state.currentRecord;
     const missing = section.fields.filter(f=> f.required && (rec[f.key]===undefined || rec[f.key]===null || rec[f.key]===''));
     if(missing.length){ showToast(t(STR.requiredMissing)); return; }
-    (async ()=>{
-      try{
-        await saveRecordRemote(sectionId, rec);
-        showToast(t(STR.savedOk));
-        state.view='list'; render();
-      }catch(err){
-        console.error('save-record error:', err);
-        showToast('Failed to save record. Check your internet connection.');
-      }
-    })();
+    saveRecordRemote(sectionId, rec);
+    showToast(t(STR.savedOk));
+    state.view='list'; render();
   }
 
   else if(action==='add-group-item'){
@@ -2844,7 +2509,7 @@ window.addEventListener('load', ()=>{
 
 <script>
 /* ===================== PWA: install + auto-update (fully automatic, no banner needed) ===================== */
-const APP_VERSION = 'v8.0.0';
+const APP_VERSION = 'v5.0.0';
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').then(reg=> reg.update()).catch(err=> console.warn('SW registration failed', err));
