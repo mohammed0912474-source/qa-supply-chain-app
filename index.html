@@ -159,6 +159,8 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 .field input:focus, .field select:focus, .field textarea:focus{outline:none; border-color:var(--accent);}
 .field-full{grid-column:1 / -1;}
 .hint{font-size:11px; color:var(--muted); margin-top:3px;}
+.draft-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;margin:0 0 12px;background:var(--teal-light);border:1px solid #B9E7E4;border-radius:9px;color:var(--teal-dark);font-size:11.5px;font-weight:700;}
+.draft-strip .draft-meta{display:flex;align-items:center;gap:6px;}
 
 /* Groups (repeatable) */
 .group-block{grid-column:1/-1; border:1.5px dashed var(--border); border-radius:10px; padding:10px; margin:6px 0; background:#FAFBFD;}
@@ -354,12 +356,36 @@ async function uploadToImgBB(dataUrl, retryCount = 0){
     return null;
   }
 }
-const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, search:'', dateFrom:'', dateTo:'', builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null, formTemp:{}, builtinFieldTarget:null };
+const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, search:'', dateFrom:'', dateTo:'', builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null, formTemp:{}, builtinFieldTarget:null, draftSaveTimer:null, draftRestored:false };
 
 const Store = {
   get(key, def){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }catch(e){ return def; } },
   set(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); return true; }catch(e){ console.error('storage error',e); return false; } }
 };
+
+/* Local form drafts never write to Firebase. They protect unfinished field work on this device only. */
+function draftKey(sectionId){ return 'qa_formDraft_'+String(sectionId||''); }
+function getFormDraft(sectionId){
+  const draft = Store.get(draftKey(sectionId), null);
+  return draft && draft.record && typeof draft.record==='object' ? draft : null;
+}
+function formatDraftTime(iso){
+  try{ return new Intl.DateTimeFormat(LANG==='ar'?'ar-EG':'en-GB',{hour:'2-digit',minute:'2-digit'}).format(new Date(iso)); }
+  catch(e){ return ''; }
+}
+function saveCurrentDraft(sectionId){
+  if(!sectionId || !state.currentRecord) return;
+  const savedAt = new Date().toISOString();
+  Store.set(draftKey(sectionId), {record:state.currentRecord, savedAt});
+  const status = document.getElementById('draftStatus');
+  if(status) status.textContent = `${t(STR.draftSaved)} ${formatDraftTime(savedAt)}`;
+}
+function scheduleDraftSave(sectionId){
+  if(!sectionId || !state.currentRecord) return;
+  if(state.draftSaveTimer) clearTimeout(state.draftSaveTimer);
+  state.draftSaveTimer = setTimeout(()=> saveCurrentDraft(sectionId), 350);
+}
+function clearFormDraft(sectionId){ try{ localStorage.removeItem(draftKey(sectionId)); }catch(e){} }
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function t(o){ if(o==null) return ''; if(typeof o==='string') return o; return o[LANG] || o.ar || o.en || ''; }
@@ -570,6 +596,10 @@ const STR = {
   recordsCount:{ar:'عدد السجلات', en:'Records'},
   requiredMissing:{ar:'برجاء تعبئة الحقول المطلوبة', en:'Please fill required fields'},
   savedOk:{ar:'تم الحفظ بنجاح ✅', en:'Saved successfully ✅'},
+  draftSaved:{ar:'تم حفظ المسودة محليًا', en:'Draft saved locally'},
+  draftRestored:{ar:'تمت استعادة المسودة المحفوظة على هذا الجهاز', en:'A local draft was restored'},
+  discardDraft:{ar:'حذف المسودة', en:'Discard draft'},
+  draftDiscarded:{ar:'تم حذف المسودة المحلية', en:'Local draft discarded'},
   deletedOk:{ar:'تم الحذف', en:'Deleted'},
   online:{ar:'متصل', en:'Online'},
   offline:{ar:'غير متصل', en:'Offline'},
@@ -1352,9 +1382,13 @@ function renderForm(sectionId){
   if(!section) return '';
   const record = state.currentRecord;
   const fieldsHtml = section.fields.map(f=> renderField(f, record)).join('');
+  const draft = getFormDraft(sectionId);
+  const time = draft && draft.savedAt ? formatDraftTime(draft.savedAt) : '';
+  const draftMessage = `${t(STR.draftSaved)}${time ? ` · ${time}` : ''}`;
   return `
   <div class="card">
     <div class="section-title"><h2>${section.icon} ${esc(t(section.name))}</h2></div>
+    <div class="draft-strip"><div class="draft-meta"><span>☁︎</span><span id="draftStatus">${esc(draftMessage)}</span></div><button class="btn btn-outline btn-sm" data-action="discard-draft" data-section="${sectionId}">${esc(t(STR.discardDraft))}</button></div>
     <div class="form-grid">${fieldsHtml}</div>
     <div style="display:flex; gap:8px; margin-top:14px;">
       <button class="btn btn-primary" data-action="save-record" data-section="${sectionId}">💾 ${esc(t(STR.save))}</button>
@@ -2302,6 +2336,7 @@ document.addEventListener('input', e=>{
     setPath(state.currentRecord, path, el.value);
     const section = getSection(state.viewSectionId);
     if(section) updateComputedDisplays(section);
+    scheduleDraftSave(state.viewSectionId);
   }
   const bf = el.getAttribute('data-builder-field');
   if(bf){
@@ -2321,6 +2356,7 @@ document.addEventListener('change', e=>{
     setPath(state.currentRecord, path, el.value);
     const section = getSection(state.viewSectionId);
     if(section) updateComputedDisplays(section);
+    scheduleDraftSave(state.viewSectionId);
   }
   const bf = el.getAttribute('data-builder-field');
   if(bf==='type'){ const idx = parseInt(el.getAttribute('data-index'),10); state.builderFields[idx].type = el.value; render(); }
@@ -2369,6 +2405,7 @@ document.addEventListener('change', e=>{
           arr.push(tempId);
           setPath(recordRef, path, arr);
           successCount++;
+          scheduleDraftSave(sectionIdRef);
           
           remaining--;
           if(remaining === 0) { 
@@ -2389,6 +2426,7 @@ document.addEventListener('change', e=>{
               if(idx === -1) return;
               arr2[idx] = url;
               setPath(recordRef, path, arr2);
+              scheduleDraftSave(sectionIdRef);
               const imgEl = document.querySelector(`img[data-imgid="${tempId}"]`);
               if(imgEl) { 
                 imgEl.src = url; 
@@ -2679,9 +2717,12 @@ document.addEventListener('click', e=>{
 
   else if(action==='new-record'){
     const sectionId = el.getAttribute('data-section'); const section = getSection(sectionId);
-    state.currentRecord = newRecord(section);
+    const savedDraft = getFormDraft(sectionId);
+    state.currentRecord = savedDraft ? savedDraft.record : newRecord(section);
+    state.draftRestored = !!savedDraft;
     if(!state.currentRecord.date) state.currentRecord.date = todayISO();
     state.view='form'; state.viewSectionId = sectionId; render();
+    if(savedDraft) showToast(t(STR.draftRestored));
   }
   else if(action==='edit-record'){
     const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
@@ -2704,6 +2745,8 @@ document.addEventListener('click', e=>{
     (async ()=>{
       try{
         await saveRecordRemote(sectionId, rec);
+        clearFormDraft(sectionId);
+        state.draftRestored = false;
         showToast(t(STR.savedOk));
         state.view='list'; render();
       }catch(err){
@@ -2719,20 +2762,20 @@ document.addEventListener('click', e=>{
     const field = section.fields.find(f=>f.key===key);
     const item = {}; field.fields.forEach(sf=> item[sf.key] = sf.type==='image' ? [] : '');
     if(!state.currentRecord[key]) state.currentRecord[key]=[];
-    state.currentRecord[key].push(item); render();
+    state.currentRecord[key].push(item); saveCurrentDraft(state.viewSectionId); render();
   }
   else if(action==='remove-group-item'){
     const key = el.getAttribute('data-group'); const idx = parseInt(el.getAttribute('data-index'),10);
-    state.currentRecord[key].splice(idx,1); render();
+    state.currentRecord[key].splice(idx,1); saveCurrentDraft(state.viewSectionId); render();
   }
   else if(action==='add-multidate'){
     const key = el.getAttribute('data-group');
     if(!state.currentRecord[key]) state.currentRecord[key]=[];
-    state.currentRecord[key].push({prod:'',exp:''}); render();
+    state.currentRecord[key].push({prod:'',exp:''}); saveCurrentDraft(state.viewSectionId); render();
   }
   else if(action==='remove-multidate'){
     const key = el.getAttribute('data-group'); const idx = parseInt(el.getAttribute('data-index'),10);
-    state.currentRecord[key].splice(idx,1); render();
+    state.currentRecord[key].splice(idx,1); saveCurrentDraft(state.viewSectionId); render();
   }
   else if(action==='remove-image'){
     const path = el.getAttribute('data-field'); const idx = parseInt(el.getAttribute('data-index'),10);
@@ -2741,7 +2784,19 @@ document.addEventListener('click', e=>{
     deleteImageFromDB(imgId);
     arr.splice(idx,1);
     setPath(state.currentRecord, path, arr);
+    saveCurrentDraft(state.viewSectionId);
     render();
+  }
+
+  else if(action==='discard-draft'){
+    const sectionId = el.getAttribute('data-section');
+    const section = getSection(sectionId);
+    clearFormDraft(sectionId);
+    state.currentRecord = newRecord(section);
+    if(!state.currentRecord.date) state.currentRecord.date = todayISO();
+    state.draftRestored = false;
+    render();
+    showToast(t(STR.draftDiscarded));
   }
 
   else if(action==='export-csv'){ exportSectionCSV(el.getAttribute('data-section')); }
@@ -2835,6 +2890,7 @@ document.addEventListener('click', e=>{
 /* ===================== Init ===================== */
 window.addEventListener('online', ()=>{ render(); retryPendingImageUploads(); });
 window.addEventListener('offline', render);
+window.addEventListener('beforeunload', ()=>{ if(state.view==='form') saveCurrentDraft(state.viewSectionId); });
 window.addEventListener('load', ()=>{
   app.innerHTML = renderLoadingScreen();
   subscribeAllCoreData();
