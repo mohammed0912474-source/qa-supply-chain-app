@@ -28,4 +28,20 @@ requiredDraftTokens.forEach((token) => {
   if (!html.includes(token)) throw new Error(`Missing draft protection token: ${token}`);
 });
 
-console.log(`Validated ${inlineScripts.length} inline scripts and draft-protection hooks.`);
+const requiredUpgradeTokens = [
+  'placeholder="YYYY-MM-DD"',
+  'readyForDispatch',
+  "label:{ar:'كمية NC', en:'NC Quantity'}",
+  'function uploadProfilePicture(file)',
+  'async function notifyReportSaved(filename)',
+  'Quality & Supply Chain Operations',
+];
+
+requiredUpgradeTokens.forEach((token) => {
+  if (!html.includes(token)) throw new Error(`Missing requested upgrade token: ${token}`);
+});
+
+if (html.includes("key:'batchNumber'")) throw new Error('Shipment batch number field should not remain in the schema.');
+if (/type=["']date["']/.test(html)) throw new Error('Date fields must support manual entry rather than browser date-only controls.');
+
+console.log(`Validated ${inlineScripts.length} inline scripts, draft protection, and requested operational upgrades.`);
