@@ -377,7 +377,7 @@ async function uploadToImgBB(dataUrl, retryCount = 0){
     return null;
   }
 }
-const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, search:'', dateFrom:'', dateTo:'', sectionFilters:{}, builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null, formTemp:{}, builtinFieldTarget:null, draftSaveTimer:null, draftRestored:false };
+const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, search:'', dateFrom:'', dateTo:'', sectionFilters:{}, sectionFilterRenderTimer:null, builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null, formTemp:{}, builtinFieldTarget:null, draftSaveTimer:null, draftRestored:false };
 
 const Store = {
   get(key, def){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }catch(e){ return def; } },
@@ -1365,9 +1365,10 @@ function renderDashboard(){
 
 /* ---- Operations workspace helpers ---- */
 function filterDefaults(sectionId){
-  if(sectionId==='containers') return {blNumber:'',readyForDispatch:'',dateFrom:'',dateTo:''};
-  if(sectionId==='trucks') return {month:'',truckNo:'',product:'',inspectionResult:''};
-  return {query:'',dateFrom:'',dateTo:''};
+  if(sectionId==='containers') return {blNumber:''};
+  if(sectionId==='trucks') return {truckNo:'',product:''};
+  if(sectionId==='rebacking') return {product:'',month:''};
+  return {query:''};
 }
 function getSectionFilters(sectionId){
   if(!state.sectionFilters[sectionId]) state.sectionFilters[sectionId] = filterDefaults(sectionId);
@@ -1376,6 +1377,7 @@ function getSectionFilters(sectionId){
 function setSectionFilter(sectionId, key, value){ getSectionFilters(sectionId)[key] = value; }
 function clearSectionFilters(sectionId){ state.sectionFilters[sectionId] = filterDefaults(sectionId); }
 function normalizedText(value){ return String(value==null?'':value).trim().toLowerCase(); }
+function hasActiveSectionFilters(sectionId){ return Object.values(getSectionFilters(sectionId)).some(value=>String(value||'').trim()!==''); }
 function productSearchText(record){
   const products = [];
   if(record.product) products.push(record.product);
@@ -1393,21 +1395,19 @@ function recordMatchesSectionFilters(sectionId, record){
   const filters = getSectionFilters(sectionId);
   if(sectionId==='containers'){
     if(filters.blNumber && !normalizedText(record.blNumber).includes(normalizedText(filters.blNumber))) return false;
-    if(filters.readyForDispatch && record.readyForDispatch!==filters.readyForDispatch) return false;
-    if(filters.dateFrom && (!record.date || record.date < filters.dateFrom)) return false;
-    if(filters.dateTo && (!record.date || record.date > filters.dateTo)) return false;
     return true;
   }
   if(sectionId==='trucks'){
-    if(filters.month && (!record.date || !record.date.startsWith(filters.month))) return false;
     if(filters.truckNo && !normalizedText(record.truckNo).includes(normalizedText(filters.truckNo))) return false;
     if(filters.product && !productSearchText(record).includes(normalizedText(filters.product))) return false;
-    if(filters.inspectionResult && record.inspectionResult!==filters.inspectionResult) return false;
+    return true;
+  }
+  if(sectionId==='rebacking'){
+    if(filters.product && !productSearchText(record).includes(normalizedText(filters.product))) return false;
+    if(filters.month && (!record.date || !record.date.startsWith(filters.month))) return false;
     return true;
   }
   if(filters.query && !normalizedText(JSON.stringify(record)).includes(normalizedText(filters.query))) return false;
-  if(filters.dateFrom && (!record.date || record.date < filters.dateFrom)) return false;
-  if(filters.dateTo && (!record.date || record.date > filters.dateTo)) return false;
   return true;
 }
 function getFilteredRecords(sectionId){
@@ -1420,6 +1420,24 @@ function statusMeta(section, record){
   const tone = ['yes','accepted'].includes(value) ? 'good' : ['no','rejected'].includes(value) ? 'bad' : value ? 'warn' : 'neutral';
   return {label:label || (LANG==='ar'?'غير محدد':'Not set'), tone};
 }
+function filteredRecordsMarkup(section, records){
+  return records.length ? renderRecordTable(section,records) : `<div class="empty-state"><div class="ico">—</div>${LANG==='ar'?'لا توجد سجلات مطابقة للبحث الحالي':'No records match the current search'}</div>`;
+}
+function refreshSectionFilterPreview(sectionId){
+  const section = getSection(sectionId); if(!section) return;
+  const records = getFilteredRecords(sectionId); const active = hasActiveSectionFilters(sectionId);
+  const metric = document.querySelector(`[data-filter-metric="${sectionId}"]`);
+  if(metric){ metric.style.display = active ? '' : 'none'; const value=metric.querySelector('[data-filter-count]'); if(value) value.textContent=records.length; }
+  const panelTitle = document.querySelector(`[data-record-panel-title="${sectionId}"]`);
+  if(panelTitle) panelTitle.textContent = active ? (LANG==='ar'?'نتائج الفلترة':'Filtered records') : (LANG==='ar'?'سجل العمليات':'Operations register');
+  const display = document.querySelector(`[data-records-display="${sectionId}"]`);
+  if(display) display.innerHTML = filteredRecordsMarkup(section,records);
+  const resultCount = document.querySelector(`[data-filter-result-count="${sectionId}"]`);
+  if(resultCount){
+    resultCount.textContent = records.length;
+    if(resultCount.parentElement) resultCount.parentElement.style.display = active ? '' : 'none';
+  }
+}
 
 /* ---- Professional operations workspace / List view ---- */
 function renderRecordActions(sectionId, recordId){
@@ -1428,41 +1446,35 @@ function renderRecordActions(sectionId, recordId){
 function renderRecordTable(section, records){
   const isShipment = section.id==='containers';
   const isTruck = section.id==='trucks';
-  const headings = isShipment ? [LANG==='ar'?'رقم البوليصة':'BL number',LANG==='ar'?'المنتج':'Product',LANG==='ar'?'النقل':'Transport',LANG==='ar'?'الحالة':'Status',LANG==='ar'?'التاريخ':'Date',''] : isTruck ? [LANG==='ar'?'رقم العربة':'Vehicle',LANG==='ar'?'المنتج':'Product',LANG==='ar'?'الوجهة':'Destination',LANG==='ar'?'نتيجة الفحص':'Inspection',LANG==='ar'?'التاريخ':'Date',''] : [LANG==='ar'?'السجل':'Record',LANG==='ar'?'التاريخ':'Date',''];
+  const headings = isShipment ? [LANG==='ar'?'التاريخ':'Date',LANG==='ar'?'رقم البوليصة':'BL number',LANG==='ar'?'المنتج':'Product',LANG==='ar'?'النقل':'Transport',LANG==='ar'?'الحالة':'Status',''] : isTruck ? [LANG==='ar'?'التاريخ':'Date',LANG==='ar'?'رقم العربة':'Vehicle',LANG==='ar'?'المنتج':'Product',LANG==='ar'?'الوجهة':'Destination',LANG==='ar'?'نتيجة الفحص':'Inspection',''] : [LANG==='ar'?'التاريخ':'Date',LANG==='ar'?'السجل':'Record',''];
   const rows = records.map(record=>{
     const status = statusMeta(section, record);
-    if(isShipment) return `<tr><td><div class="record-primary">${esc(record.blNumber||'—')}</div><div class="record-secondary">${record.containerCount?`${record.containerCount} ${LANG==='ar'?'حاوية':'containers'}`:''}</div></td><td><div class="record-product">${esc(record.productDesc||'—')}</div><div class="record-secondary">${esc(record.countryOfOrigin||'')}</div></td><td>${esc(selectLabel(section,'transportMethod',record.transportMethod)||record.transportMethod||'—')}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span></td><td>${esc(record.date||'—')}</td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
-    if(isTruck) return `<tr><td><div class="record-primary">${esc(record.truckNo||'—')}</div><div class="record-secondary">${esc(record.transporter||'')}</div></td><td><div class="record-product">${esc(productSearchText(record)||'—')}</div></td><td>${esc(record.destination||'—')}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span></td><td>${esc(record.date||'—')}</td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+    if(isShipment) return `<tr><td>${esc(record.date||'—')}</td><td><div class="record-primary">${esc(record.blNumber||'—')}</div><div class="record-secondary">${record.containerCount?`${record.containerCount} ${LANG==='ar'?'حاوية':'containers'}`:''}</div></td><td><div class="record-product">${esc(record.productDesc||'—')}</div><div class="record-secondary">${esc(record.countryOfOrigin||'')}</div></td><td>${esc(selectLabel(section,'transportMethod',record.transportMethod)||record.transportMethod||'—')}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+    if(isTruck) return `<tr><td>${esc(record.date||'—')}</td><td><div class="record-primary">${esc(record.truckNo||'—')}</div><div class="record-secondary">${esc(record.transporter||'')}</div></td><td><div class="record-product">${esc(productSearchText(record)||'—')}</div></td><td>${esc(record.destination||'—')}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
     const primary = section.listFields.map(key=>record[key]).filter(Boolean).join(' · ');
-    return `<tr><td><div class="record-primary">${esc(primary||'—')}</div></td><td>${esc(record.date||'—')}</td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+    return `<tr><td>${esc(record.date||'—')}</td><td><div class="record-primary">${esc(primary||'—')}</div></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
   }).join('');
   return `<div class="records-table-wrap"><table class="records-table"><thead><tr>${headings.map(label=>`<th>${esc(label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function filterField(label, control){ return `<div class="filter-field"><label>${label}</label>${control}</div>`; }
 function renderSectionFilters(section){
   const filters = getSectionFilters(section.id);
-  if(section.id==='containers') return `<div class="filter-grid">
-    ${filterField(LANG==='ar'?'رقم البوليصة':'BL number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم البوليصة':'Search BL number'}" value="${esc(filters.blNumber)}" data-section-filter="${section.id}" data-filter-key="blNumber">`)}
-    ${filterField(LANG==='ar'?'حالة التوزيع':'Dispatch status',`<select data-section-filter="${section.id}" data-filter-key="readyForDispatch"><option value="">${LANG==='ar'?'كل الحالات':'All statuses'}</option><option value="yes" ${filters.readyForDispatch==='yes'?'selected':''}>${LANG==='ar'?'جاهز للتوزيع':'Ready'}</option><option value="pending" ${filters.readyForDispatch==='pending'?'selected':''}>${LANG==='ar'?'قيد الانتظار':'Pending'}</option><option value="no" ${filters.readyForDispatch==='no'?'selected':''}>${LANG==='ar'?'غير جاهز':'Not ready'}</option></select>`)}
-    ${filterField(LANG==='ar'?'من تاريخ':'From date',`<input type="text" inputmode="numeric" placeholder="YYYY-MM-DD" value="${esc(filters.dateFrom)}" data-section-filter="${section.id}" data-filter-key="dateFrom">`)}
-    ${filterField(LANG==='ar'?'إلى تاريخ':'To date',`<input type="text" inputmode="numeric" placeholder="YYYY-MM-DD" value="${esc(filters.dateTo)}" data-section-filter="${section.id}" data-filter-key="dateTo">`)}
-  </div>`;
+  if(section.id==='containers') return `<div class="filter-grid">${filterField(LANG==='ar'?'رقم البوليصة':'BL number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم البوليصة':'Search BL number'}" value="${esc(filters.blNumber)}" data-section-filter="${section.id}" data-filter-key="blNumber">`)}</div>`;
   if(section.id==='trucks') return `<div class="filter-grid">
-    ${filterField(LANG==='ar'?'الشهر':'Month',`<input type="text" inputmode="numeric" placeholder="YYYY-MM" value="${esc(filters.month)}" data-section-filter="${section.id}" data-filter-key="month">`)}
     ${filterField(LANG==='ar'?'رقم العربة':'Vehicle number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم العربة':'Search vehicle'}" value="${esc(filters.truckNo)}" data-section-filter="${section.id}" data-filter-key="truckNo">`)}
     ${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}
-    ${filterField(LANG==='ar'?'نتيجة الفحص':'Inspection result',`<select data-section-filter="${section.id}" data-filter-key="inspectionResult"><option value="">${LANG==='ar'?'كل النتائج':'All results'}</option><option value="accepted" ${filters.inspectionResult==='accepted'?'selected':''}>${LANG==='ar'?'مقبولة':'Accepted'}</option><option value="rejected" ${filters.inspectionResult==='rejected'?'selected':''}>${LANG==='ar'?'مرفوضة':'Rejected'}</option></select>`)}
   </div>`;
-  return `<div class="filter-grid">${filterField(LANG==='ar'?'بحث داخل السجلات':'Search records',`<input type="text" autocomplete="off" placeholder="${esc(t(STR.search))}" value="${esc(filters.query)}" data-section-filter="${section.id}" data-filter-key="query">`)}${filterField(LANG==='ar'?'من تاريخ':'From date',`<input type="text" inputmode="numeric" placeholder="YYYY-MM-DD" value="${esc(filters.dateFrom)}" data-section-filter="${section.id}" data-filter-key="dateFrom">`)}${filterField(LANG==='ar'?'إلى تاريخ':'To date',`<input type="text" inputmode="numeric" placeholder="YYYY-MM-DD" value="${esc(filters.dateTo)}" data-section-filter="${section.id}" data-filter-key="dateTo">`)}</div>`;
+  if(section.id==='rebacking') return `<div class="filter-grid">${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}${filterField(LANG==='ar'?'الشهر':'Month',`<input type="text" inputmode="numeric" placeholder="YYYY-MM" value="${esc(filters.month)}" data-section-filter="${section.id}" data-filter-key="month">`)}</div>`;
+  return `<div class="filter-grid">${filterField(LANG==='ar'?'بحث داخل السجلات':'Search records',`<input type="text" autocomplete="off" placeholder="${esc(t(STR.search))}" value="${esc(filters.query)}" data-section-filter="${section.id}" data-filter-key="query">`)}</div>`;
 }
 function renderList(sectionId){
   const section = getSection(sectionId); if(!section) return '';
-  const allRecords = getRecords(sectionId); const records = getFilteredRecords(sectionId);
-  const description = sectionId==='containers' ? (LANG==='ar'?'تابع البوالص وحالة جاهزية التوزيع من مساحة عمل واحدة.':'Track bills of lading and dispatch readiness in one workspace.') : sectionId==='trucks' ? (LANG==='ar'?'ابحث في الفحوصات حسب الشهر أو رقم العربة أو المنتج.':'Search inspections by month, vehicle number, or product.') : (LANG==='ar'?'استعرض السجلات ونظّم النتائج والتصدير من مكان واحد.':'Review records, organize results, and export from one place.');
+  const allRecords = getRecords(sectionId); const records = getFilteredRecords(sectionId); const filtersActive = hasActiveSectionFilters(sectionId);
+  const description = sectionId==='containers' ? (LANG==='ar'?'تابع الشحنات من مساحة عمل واحدة.':'Manage shipments from one workspace.') : sectionId==='trucks' ? (LANG==='ar'?'أدر فحوصات الشاحنات والمنتجات المحمّلة بوضوح وسرعة من سجل تشغيلي موحّد.':'Manage truck inspections and loaded products from one operational register.') : sectionId==='rebacking' ? (LANG==='ar'?'تابع عمليات معالجة المنتجات والكميات والفاقد من سجل تشغيلي منظم.':'Track product processing, quantities, and loss from an organized operational register.') : (LANG==='ar'?'استعرض السجلات ونظّم النتائج والتصدير من مكان واحد.':'Review records, organize results, and export from one place.');
   return `<div class="operations-shell"><section class="workspace-header"><div><div class="workspace-kicker">${LANG==='ar'?'سجل العمليات':'OPERATIONS REGISTER'}</div><h1 class="workspace-title">${esc(t(section.name))}</h1><p class="workspace-description">${description}</p></div><button class="btn btn-primary" data-action="new-record" data-section="${sectionId}">${LANG==='ar'?'سجل عملية جديدة':'New record'}</button></section>
-    <section class="workspace-metrics"><div class="workspace-metric"><span class="value">${allRecords.length}</span><span class="label">${LANG==='ar'?'إجمالي السجلات':'Total records'}</span></div><div class="workspace-metric"><span class="value">${records.length}</span><span class="label">${LANG==='ar'?'نتائج الفلاتر':'Filtered results'}</span></div><div class="workspace-metric"><span class="value">${records[0]&&records[0].date?esc(records[0].date):'—'}</span><span class="label">${LANG==='ar'?'أحدث سجل':'Latest record'}</span></div></section>
-    <section class="filter-panel"><div class="filter-panel-head"><div><h2 class="filter-panel-title">${LANG==='ar'?'بحث وفلاتر':'Search & filters'}</h2><div class="filter-panel-note">${LANG==='ar'?'التصدير يعكس النتائج الظاهرة فقط.':'Exports include visible results only.'}</div></div></div>${renderSectionFilters(section)}<div class="filter-footer"><div class="filter-results"><b>${records.length}</b> ${LANG==='ar'?'سجل مطابق':'matching records'}</div><div class="filter-actions"><button class="btn btn-quiet btn-sm" data-action="clear-section-filters" data-section="${sectionId}">${LANG==='ar'?'مسح الفلاتر':'Clear filters'}</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-csv" data-section="${sectionId}">CSV</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-xlsx" data-section="${sectionId}">Excel</button><button class="btn btn-primary btn-sm" data-action="share-filtered-pdf" data-section="${sectionId}">PDF</button></div></div></section>
-    <section class="records-panel"><div class="records-panel-head"><div><div class="records-panel-title">${LANG==='ar'?'سجل النتائج':'Results register'}</div><div class="records-panel-sub">${LANG==='ar'?'أحدث السجلات تظهر أولًا':'Newest records are shown first'}</div></div></div>${records.length ? renderRecordTable(section,records) : `<div class="empty-state"><div class="ico">—</div>${LANG==='ar'?'لا توجد سجلات مطابقة للفلاتر الحالية':'No records match the current filters'}</div>`}</section></div>`;
+    <section class="workspace-metrics"><div class="workspace-metric"><span class="value">${allRecords.length}</span><span class="label">${LANG==='ar'?'إجمالي السجلات':'Total records'}</span></div><div class="workspace-metric" data-filter-metric="${sectionId}" style="display:${filtersActive?'':'none'}"><span class="value" data-filter-count>${records.length}</span><span class="label">${LANG==='ar'?'نتائج الفلترة':'Filtered records'}</span></div></section>
+    <section class="filter-panel"><div class="filter-panel-head"><div><h2 class="filter-panel-title">${LANG==='ar'?'بحث':'Search'}</h2><div class="filter-panel-note">${LANG==='ar'?'التصدير يعكس النتائج الظاهرة فقط.':'Exports include visible results only.'}</div></div></div>${renderSectionFilters(section)}<div class="filter-footer"><div class="filter-results" style="display:${filtersActive?'':'none'}"><b data-filter-result-count="${sectionId}">${records.length}</b> ${LANG==='ar'?'سجل مطابق':'matching records'}</div><div class="filter-actions"><button class="btn btn-quiet btn-sm" data-action="clear-section-filters" data-section="${sectionId}">${LANG==='ar'?'مسح البحث':'Clear search'}</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-csv" data-section="${sectionId}">CSV</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-xlsx" data-section="${sectionId}">Excel</button><button class="btn btn-primary btn-sm" data-action="share-filtered-pdf" data-section="${sectionId}">PDF</button></div></div></section>
+    <section class="records-panel"><div class="records-panel-head"><div><div class="records-panel-title" data-record-panel-title="${sectionId}">${filtersActive?(LANG==='ar'?'نتائج الفلترة':'Filtered records'):(LANG==='ar'?'سجل العمليات':'Operations register')}</div><div class="records-panel-sub">${LANG==='ar'?'يدعم السجل عددًا كبيرًا من العمليات ويعرض الأحدث أولًا.':'The register supports a large number of operations and shows newest records first.'}</div></div></div><div data-records-display="${sectionId}">${filteredRecordsMarkup(section,records)}</div></section></div>`;
 }
 
 /* ---- Form view ---- */
@@ -2453,7 +2465,7 @@ document.addEventListener('input', e=>{
   const filterSection = el.getAttribute('data-section-filter');
   if(filterSection){
     setSectionFilter(filterSection, el.getAttribute('data-filter-key'), el.value);
-    render();
+    refreshSectionFilterPreview(filterSection);
     return;
   }
   const bf = el.getAttribute('data-builder-field');
@@ -2479,7 +2491,7 @@ document.addEventListener('change', e=>{
   const filterSection = el.getAttribute('data-section-filter');
   if(filterSection){
     setSectionFilter(filterSection, el.getAttribute('data-filter-key'), el.value);
-    render();
+    refreshSectionFilterPreview(filterSection);
     return;
   }
   const bf = el.getAttribute('data-builder-field');
