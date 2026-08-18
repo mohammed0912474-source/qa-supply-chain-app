@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QA Supply Chain">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="assets/app-icon-professional.png">
+<link rel="icon" type="image/png" href="assets/app-icon-professional.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://api.imgbb.com">
@@ -239,10 +239,13 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 .field-row-builder select,.field-row-builder input{padding:7px 8px; border:1.5px solid var(--border); border-radius:7px; font-size:12.5px;}
 
 /* auth screens */
-.auth-screen{min-height:70vh; display:flex; align-items:center; justify-content:center; padding:20px 14px;}
-.auth-box{width:100%; max-width:420px;}
-.auth-logo{width:64px; height:64px; border-radius:16px; background:linear-gradient(135deg,var(--navy),var(--navy3)); color:#fff; display:flex; align-items:center; justify-content:center; font-size:32px; margin:0 auto 14px;}
-.auth-title{text-align:center; font-size:19px; font-weight:800; color:var(--navy); margin-bottom:4px;}
+.auth-screen{min-height:70vh; display:flex; align-items:center; justify-content:center; padding:28px 14px; background-size:cover; background-position:center; position:relative; isolation:isolate;}
+.auth-screen::before{content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(6,28,52,.82),rgba(6,28,52,.50) 52%,rgba(6,28,52,.76)); z-index:-1;}
+.auth-box{width:100%; max-width:460px; background:rgba(255,255,255,.96); border:1px solid rgba(255,255,255,.72); border-radius:14px; padding:22px 22px 20px; box-shadow:0 14px 40px rgba(0,0,0,.22);}
+.auth-logo{width:76px; height:76px; border-radius:18px; background:#fff; border:3px solid rgba(14,165,160,.38); color:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:32px; margin:0 auto 12px;}
+.auth-logo img{width:100%;height:100%;object-fit:cover;display:block;}
+.auth-title{text-align:center; font-size:20px; font-weight:800; color:var(--navy); margin-bottom:4px;}
+.auth-welcome-quote{text-align:center;color:#0B807C;font-size:13px;line-height:1.7;font-weight:700;margin:0 auto 14px;max-width:360px;}
 .auth-sub{text-align:center; font-size:13px; color:var(--muted); margin-bottom:18px;}
 .user-chip{display:flex; align-items:center; justify-content:space-between; width:100%; background:#fff; border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; text-align:start;}
 .user-chip:active{background:#EAF2FC;}
@@ -323,6 +326,14 @@ const WELCOME_TAGLINES = [
 const SESSION_TAGLINE = WELCOME_TAGLINES[Math.floor(Math.random()*WELCOME_TAGLINES.length)];
 
 /* شعار مخصص (درع + علامة صح) بدل الإيموجي - متسق مع أيقونة التطبيق */
+const APP_ICON_URL = 'assets/app-icon-professional.png';
+const AUTH_HEROES = ['assets/login-port.jpg','assets/login-truck.jpg','assets/login-processing.jpg','assets/login-reporting.jpg'];
+const AUTH_WELCOME_MESSAGES = {
+  ar:['الجودة تبدأ من معلومة موثقة.','كل سجل واضح يدعم قرارًا أفضل.','من الميدان إلى التقرير… نعمل بدقة.','سلامة المنتج مسؤولية تبدأ بالتفاصيل.'],
+  en:['Quality starts with a documented fact.','Every clear record supports a better decision.','From field work to reporting — with precision.','Product safety begins with the details.']
+};
+function getAuthHeroIndex(){ return Math.floor(Date.now()/60000) % AUTH_HEROES.length; }
+function getAuthWelcomeMessage(){ const list=AUTH_WELCOME_MESSAGES[LANG]||AUTH_WELCOME_MESSAGES.ar; return list[getAuthHeroIndex()%list.length]; }
 const LOGO_SVG = `<svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
   <defs><linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
     <stop offset="0%" stop-color="#2E7BD6"/><stop offset="100%" stop-color="#0EA5A0"/>
@@ -1119,7 +1130,7 @@ function renderHeader(){
   <div class="app-header">
     <div class="header-top">
       <div class="brand">
-        <div class="logo">${LOGO_SVG}</div>
+        <div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div>
         <div class="titles">
           <h1>${esc(t(STR.appName))}</h1>
           <div class="sub">${user?esc(user.name):'QA Supply Chain'}</div>
@@ -1543,10 +1554,10 @@ function renderField(f, record){
     return `<div class="field${full}">${label}<input type="text" data-field="${f.key}" value="${esc(val||'')}"></div>`;
   }
   if(f.type==='number'){
-    return `<div class="field${full}">${label}<input type="number" min="0" step="any" data-field="${f.key}" value="${esc(val!=null?val:'')}"></div>`;
+    return `<div class="field${full}">${label}<input type="text" inputmode="decimal" data-field="${f.key}" value="${esc(val!=null?val:'')}"></div>`;
   }
   if(f.type==='date'){
-    return `<div class="field${full}">${label}<input type="text" inputmode="numeric" autocomplete="off" placeholder="YYYY-MM-DD" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+    return `<div class="field${full}">${label}<input type="text" inputmode="text" autocomplete="off" placeholder="YYYY-MM-DD" data-field="${f.key}" value="${esc(val||'')}"></div>`;
   }
   if(f.type==='textarea'){
     return `<div class="field${full}">${label}<textarea data-field="${f.key}">${esc(val||'')}</textarea></div>`;
@@ -1572,9 +1583,9 @@ function renderField(f, record){
     const arr = asArray(val);
     const rows = arr.map((item,idx)=>`
       <div class="md-row">
-        <input type="text" inputmode="numeric" autocomplete="off" data-field="${f.key}.${idx}.prod" value="${esc(item.prod||'')}" placeholder="${LANG==='ar'?'الإنتاج YYYY-MM-DD':'Production YYYY-MM-DD'}">
+        <input type="text" inputmode="text" autocomplete="off" data-field="${f.key}.${idx}.prod" value="${esc(item.prod||'')}" placeholder="${LANG==='ar'?'الإنتاج YYYY-MM-DD':'Production YYYY-MM-DD'}">
         <span>→</span>
-        <input type="text" inputmode="numeric" autocomplete="off" data-field="${f.key}.${idx}.exp" value="${esc(item.exp||'')}" placeholder="${LANG==='ar'?'الانتهاء YYYY-MM-DD':'Expiry YYYY-MM-DD'}">
+        <input type="text" inputmode="text" autocomplete="off" data-field="${f.key}.${idx}.exp" value="${esc(item.exp||'')}" placeholder="${LANG==='ar'?'الانتهاء YYYY-MM-DD':'Expiry YYYY-MM-DD'}">
         <button class="btn btn-danger btn-sm" data-action="remove-multidate" data-group="${f.key}" data-index="${idx}">✕</button>
       </div>`).join('');
     return `<div class="field field-full">${label}
@@ -1597,9 +1608,9 @@ function renderField(f, record){
         }
         if(sf.type==='textarea') return `<div class="field" style="grid-column:1/-1">${subLabel}<textarea data-field="${f.key}.${idx}.${sf.key}">${esc(sval||'')}</textarea></div>`;
         if(sf.type==='unit') return `<div class="field">${subLabel}<input type="text" list="unitOptionsList" data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval||'')}"></div>`;
-        const inputType = sf.type==='number'?'number':'text';
-        const extraAttrs = sf.type==='number' ? ' min="0" step="any"' : '';
-        const dateAttrs = sf.type==='date' ? ' inputmode="numeric" autocomplete="off" placeholder="YYYY-MM-DD"' : '';
+        const inputType = 'text';
+        const extraAttrs = sf.type==='number' ? ' inputmode="decimal"' : '';
+        const dateAttrs = sf.type==='date' ? ' inputmode="text" autocomplete="off" placeholder="YYYY-MM-DD"' : '';
         return `<div class="field">${subLabel}<input type="${inputType}"${extraAttrs}${dateAttrs} data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval!=null?sval:'')}"></div>`;
       }).join('');
       const imageHtml = imageSubFields.map(sf=> renderImageField(`${f.key}.${idx}.${sf.key}`, item[sf.key], `<label>${esc(t(sf.label))}</label>`)).join('');
@@ -2395,12 +2406,12 @@ function renderAuthGate(){
   return `
   <div class="app-header">
     <div class="header-top">
-      <div class="brand"><div class="logo">${LOGO_SVG}</div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
+      <div class="brand"><div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
       <div class="header-actions"><button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button></div>
     </div>
     <div class="tagline-strip">${LANG==='ar'?'عمليات الجودة وسلسلة الإمداد':'Quality & Supply Chain Operations'}</div>
   </div>
-  <div class="container"><div class="auth-screen"><div class="auth-box">${inner}</div></div></div>`;
+  <div class="container"><div class="auth-screen" style="background-image:url('${AUTH_HEROES[getAuthHeroIndex()]}');"><div class="auth-box">${inner}</div></div></div>`;
 }
 
 function getDeviceKnownUserIds(){ return Store.get('qa_deviceKnownUsers', []); }
@@ -2422,8 +2433,9 @@ function renderWelcomeScreen(){
       <span>➡️</span>
     </button>`).join('');
   return `
-  <div class="auth-logo">🛡️</div>
+  <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain"></div>
   <div class="auth-title">${esc(t(STR.welcomeTitle))}</div>
+  <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
   <div class="auth-sub">${esc(t(STR.welcomeSub))}</div>
   ${users.length? `<div class="hint" style="margin-bottom:8px;">${esc(t(STR.whoAreYou))}</div>${chips}`:''}
   <div class="auth-divider">${LANG==='ar'?'أو':'or'}</div>
@@ -2500,8 +2512,9 @@ function renderLockScreen(){
   const user = isAdminTarget ? {name:t(STR.roleAdmin), biometricCredId: META_CACHE.adminBiometricCredId} : getUsers().find(u=>u.id===targetId);
   if(!user) return renderWelcomeScreen();
   return `
-  <div class="auth-logo">🔒</div>
+  <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain"></div>
   <div class="auth-title">${esc(t(STR.lockWelcomeBack))}</div>
+  <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
   <div class="auth-sub">${esc(user.name)}</div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.enterPassword))}</label><input type="password" id="lockPass" value="${esc(state.formTemp.lockPass||'')}"></div>
   <button class="btn btn-primary btn-block" data-action="auth-unlock-password">${esc(t(STR.unlockBtn))}</button>
