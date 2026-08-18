@@ -1474,7 +1474,7 @@ function renderRecordDetail(sectionId, record){
   if(!section || !record) return `<div class="empty-state">${LANG==='ar'?'تعذر العثور على السجل':'Record not found'}</div>`;
   const identity = sectionId==='containers' ? record.blNumber : sectionId==='trucks' ? record.truckNo : (record.product || record.blNumber);
   const fields = section.fields.map(field=>renderDetailField(section, field, record[field.key])).join('');
-  return `<div class="detail-workspace"><div class="detail-header"><div><div class="form-workspace-kicker">${esc(t(section.name))}</div><h1>${esc(identity||t(section.name))}</h1><p>${LANG==='ar'?'عرض كامل لتفاصيل العملية وسجلها التشغيلي':'Complete operational record details'}</p></div><button class="btn" data-action="back-to-list" data-section="${sectionId}">${LANG==='ar'?'العودة إلى السجل':'Back to register'}</button></div><div class="detail-summary">${detailValue(LANG==='ar'?'التاريخ':'Date',record.date)}${detailValue(LANG==='ar'?'المعرّف':'Record ID',record.id)}${detailValue(LANG==='ar'?'آخر تحديث':'Last updated',record._updated||record._created)}</div>${fields}<div class="detail-footer"><button class="btn btn-quiet" data-action="edit-record" data-section="${sectionId}" data-id="${record.id}">${LANG==='ar'?'تعديل العملية':'Edit record'}</button><button class="btn btn-primary" data-action="share-record-pdf" data-section="${sectionId}" data-id="${record.id}">PDF</button></div></div>`;
+  return `<div class="detail-workspace"><div class="detail-header"><div><div class="form-workspace-kicker">${esc(t(section.name))}</div><h1>${esc(identity||t(section.name))}</h1><p>${LANG==='ar'?'عرض كامل لتفاصيل العملية وسجلها التشغيلي':'Complete operational record details'}</p></div><button class="btn" data-action="back-to-list" data-section="${sectionId}">${LANG==='ar'?'العودة إلى السجل':'Back to register'}</button></div><div class="detail-summary">${detailValue(LANG==='ar'?'التاريخ':'Date',record.date)}${detailValue(LANG==='ar'?'آخر تحديث':'Last updated',record._updated||record._created)}</div>${fields}<div class="detail-footer"><button class="btn btn-quiet" data-action="edit-record" data-section="${sectionId}" data-id="${record.id}">${LANG==='ar'?'تعديل العملية':'Edit record'}</button><button class="btn btn-primary" data-action="share-record-pdf" data-section="${sectionId}" data-id="${record.id}">PDF</button></div></div>`;
 }
 function renderRecordTable(section, records){
   const isShipment = section.id==='containers';
@@ -1719,7 +1719,8 @@ function renderMonthly(){
     <div class="toolbar">
       <select data-action="monthly-month">${monthOptions.map(m=>`<option value="${m}" ${m==month?'selected':''}>${m}</option>`).join('')}</select>
       <select data-action="monthly-year">${years.map(y=>`<option value="${y}" ${y==year?'selected':''}>${y}</option>`).join('')}</select>
-      <button class="btn btn-primary btn-sm" data-action="export-combined-month">${esc(t(STR.exportAll))}</button>
+      <button class="btn btn-primary btn-sm" data-action="export-combined-month">${LANG==='ar'?'حزمة Excel الشهرية':'Monthly Excel package'}</button>
+      <button class="btn btn-outline btn-sm" data-action="export-combined-month-pdf">${LANG==='ar'?'تقرير PDF الموحد':'Combined PDF report'}</button>
     </div>
     <table class="summary-table">
       <thead><tr><th>${LANG==='ar'?'القسم':'Section'}</th><th>${esc(t(STR.recordsCount))}</th><th>${esc(t(STR.summary))}</th><th></th></tr></thead>
@@ -1923,13 +1924,13 @@ function downloadFile(filename, content, mime){
   setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
 }
 
-function exportSectionCSV(sectionId, filterFn){
+function exportSectionCSV(sectionId, filterFn, filenameOverride){
   const section = getSection(sectionId);
   let records = getRecords(sectionId);
   if(filterFn) records = records.filter(filterFn);
   const flat = records.map(r=> flattenRecordForExport(section, r));
   const csv = toCSV(flat);
-  const filename = `${section.id}_${todayISO()}.csv`;
+  const filename = filenameOverride || `${section.id}_${todayISO()}.csv`;
   downloadFile(filename, csv, 'text/csv;charset=utf-8;');
   storeExportedFile(filename, 'csv', textToDataUrl(csv, 'text/csv;charset=utf-8'));
   showToast(t(STR.savedOk));
@@ -1947,7 +1948,7 @@ function loadSheetJS(){
   return _sheetJsLoading;
 }
 
-async function exportSectionXLSX(sectionId, filterFn){
+async function exportSectionXLSX(sectionId, filterFn, filenameOverride){
   const section = getSection(sectionId);
   let records = getRecords(sectionId);
   if(filterFn) records = records.filter(filterFn);
@@ -1958,13 +1959,28 @@ async function exportSectionXLSX(sectionId, filterFn){
   ws['!cols'] = computeColumnWidths(flat);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, section.id.slice(0,28));
-  const filename = `${section.id}_${todayISO()}.xlsx`;
+  const filename = filenameOverride || `${section.id}_${todayISO()}.xlsx`;
   XLSX.writeFile(wb, filename);
   const base64 = XLSX.write(wb, {type:'base64', bookType:'xlsx'});
   storeExportedFile(filename, 'xlsx', 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+base64);
   showToast(t(STR.savedOk));
 }
 
+function safeSheetName(name, fallback){
+  const cleaned = String(name||fallback||'Sheet').replace(/[\\/:?*\[\]]/g,' ').trim().slice(0,31);
+  return cleaned || fallback || 'Sheet';
+}
+function styleMonthlySheet(ws, flat, title, period){
+  const headers = flat.length ? Object.keys(flat[0]) : [LANG==='ar'?'لا توجد سجلات':'No records'];
+  const data = flat.length ? flat : [{[headers[0]]:''}];
+  XLSX.utils.sheet_add_aoa(ws, [[title],[LANG==='ar'?'الفترة':'Period', period],[LANG==='ar'?'تاريخ إنشاء الملف':'Generated', new Date().toISOString().slice(0,10)]], {origin:'A1'});
+  XLSX.utils.sheet_add_json(ws, data, {origin:'A5', skipHeader:false});
+  ws['!cols'] = computeColumnWidths(flat.length ? flat : data).map(c=>({wch:Math.min(Math.max(c.wch,14),42)}));
+  ws['!freeze'] = {xSplit:0,ySplit:5};
+  ws['!autofilter'] = {ref:`A5:${String.fromCharCode(64+Math.min(headers.length,26))}${5+data.length}`};
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:Math.max(0,headers.length-1)}}];
+  return ws;
+}
 async function exportCombinedMonth(){
   const {month, year} = state.monthly;
   const prefix = `${year}-${String(month).padStart(2,'0')}`;
@@ -1976,19 +1992,52 @@ async function exportCombinedMonth(){
     return;
   }
   const wb = XLSX.utils.book_new();
+  const summaryRows = sections.map(s=>{
+    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
+    const numberFields = s.fields.filter(f=>f.type==='number');
+    const totals = numberFields.map(f=>`${t(f.label)}: ${recs.reduce((a,r)=>a+(parseFloat(r[f.key])||0),0)}`).join(' | ');
+    return { [LANG==='ar'?'القسم':'Section']:t(s.name), [LANG==='ar'?'عدد السجلات':'Records']:recs.length, [LANG==='ar'?'الإجماليات':'Totals']:totals||'—' };
+  });
+  const summary = XLSX.utils.aoa_to_sheet([[t(STR.appName)],[LANG==='ar'?'التقرير الشهري المؤسسي':'Monthly corporate operations report'],[LANG==='ar'?'الفترة':'Period',prefix],[LANG==='ar'?'تاريخ إنشاء الملف':'Generated',new Date().toISOString().slice(0,10)]]);
+  XLSX.utils.sheet_add_json(summary, summaryRows, {origin:'A6', skipHeader:false});
+  summary['!cols']=[{wch:28},{wch:14},{wch:60}]; summary['!freeze']={xSplit:0,ySplit:6}; summary['!autofilter']={ref:`A6:C${6+summaryRows.length}`}; summary['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}},{s:{r:1,c:0},e:{r:1,c:2}}];
+  XLSX.utils.book_append_sheet(wb, summary, safeSheetName(LANG==='ar'?'ملخص شهري':'Monthly Summary','Summary'));
   sections.forEach(s=>{
     const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
     const flat = recs.map(r=> flattenRecordForExport(s, r));
-    const ws = XLSX.utils.json_to_sheet(flat.length?flat:[{ }]);
-    ws['!cols'] = computeColumnWidths(flat);
-    XLSX.utils.book_append_sheet(wb, ws, s.id.slice(0,28));
+    const ws = styleMonthlySheet(XLSX.utils.aoa_to_sheet([]), flat, `${t(s.name)} — ${prefix}`, prefix);
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName(t(s.name), s.id));
   });
-  const filename = `QA_Monthly_${prefix}.xlsx`;
+  const filename = `QA_SupplyChain_Monthly_${prefix}.xlsx`;
   XLSX.writeFile(wb, filename);
   const base64 = XLSX.write(wb, {type:'base64', bookType:'xlsx'});
   storeExportedFile(filename, 'xlsx', 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+base64);
+  notifyReportSaved(filename);
   showToast(t(STR.savedOk));
 }
+async function exportCombinedMonthPDF(){
+  const {month, year} = state.monthly;
+  const prefix = `${year}-${String(month).padStart(2,'0')}`;
+  const sections = getAllSections();
+  const blocks = [];
+  for(const section of sections){
+    const records = getRecords(section.id).filter(r=>r.date && r.date.startsWith(prefix));
+    if(!records.length) continue;
+    const imageMap = await buildImageMapForRecords(section, records).catch(()=>({}));
+    blocks.push(`<div class="pf-sectiontitle">${esc(t(section.name))} <span>${records.length} ${LANG==='ar'?'سجل':'records'}</span></div>${records.map(r=>renderRecordPrintHtml(section,r,imageMap)).join('')}`);
+  }
+  if(!blocks.length){ showToast(t(STR.noRecords)); return; }
+  showToast(t(STR.generatingPdf));
+  const title = `${LANG==='ar'?'التقرير الشهري الموحد':'Combined monthly report'} — ${prefix}`;
+  const html = buildCombinedReportHtml(title, blocks.join(''));
+  const filename = `QA_SupplyChain_Monthly_${prefix}.pdf`;
+  const libsOk = await loadPdfLibs().catch(()=>false);
+  if(libsOk){ try{ await generatePdfBlobAndStore(html, filename); notifyReportSaved(filename); showToast(t(STR.savedOk)); return; }catch(err){ console.error('Combined PDF generation failed:',err); } }
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
+  writeAndPrintWindow(printWindow, html);
+}
+
 
 /* ===================== PDF export (native browser print, no external dependencies) ===================== */
 function loadScriptWithFallback(urls){
@@ -2126,6 +2175,10 @@ function renderRecordPrintHtml(section, record, imageMap){
   </div>`;
 }
 
+function buildCombinedReportHtml(reportTitle, bodyBlocks){
+  const dir = LANG==='ar' ? 'rtl':'ltr';
+  return `<!DOCTYPE html><html dir="${dir}" lang="${LANG}"><head><meta charset="UTF-8"><title>${esc(reportTitle)}</title><style>*{box-sizing:border-box;}body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#152232;padding:16px;margin:0;background:#fff}.pf-cover{background:linear-gradient(135deg,#0B2A4A,#0E355C);color:#fff;padding:22px;border-radius:10px;margin-bottom:18px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pf-cover h1{margin:0 0 6px;font-size:21px}.pf-cover .sub{font-size:12.5px;opacity:.85}.pf-sectiontitle{font-size:16px;font-weight:900;color:#0B2A4A;border-bottom:2px solid #2E7BD6;padding:8px 2px;margin:18px 0 10px}.pf-sectiontitle span{font-size:11px;color:#66768C;font-weight:600;margin-inline-start:8px}.pf-record{border:1px solid #DCE3EC;border-radius:10px;padding:16px;margin-bottom:16px;background:#fff;page-break-inside:avoid}.pf-recordheader{font-size:15px;font-weight:800;color:#0B2A4A;margin-bottom:10px;border-bottom:2px solid #2E7BD6;padding-bottom:6px}.pf-table{width:100%;border-collapse:collapse;margin-bottom:8px}.pf-table td{padding:6px 8px;border-bottom:1px solid #EEF2F7;font-size:12px;vertical-align:top}.pf-label{color:#66768C;font-weight:700;width:38%}.pf-value{color:#152232}.pf-imgblock{margin:8px 0}.pf-imglabel{font-size:11.5px;font-weight:700;color:#123A5E;margin-bottom:4px}.pf-imggrid{display:flex;flex-wrap:wrap;gap:8px}.pf-imggrid img{width:150px;height:150px;object-fit:cover;border-radius:6px;border:1px solid #DCE3EC}.pf-group{margin:10px 0;border-top:1px dashed #DCE3EC;padding-top:8px}.pf-grouptitle{font-weight:800;color:#0B2A4A;font-size:12.5px;margin-bottom:6px}.pf-groupitem{background:#FAFBFD;border:1px solid #EEF2F7;border-radius:8px;padding:8px;margin-bottom:8px}.pf-groupnum{font-size:11px;font-weight:700;color:#2E7BD6;margin-bottom:4px}@media print{body{padding:0}.pf-sectiontitle{page-break-after:avoid}}</style></head><body><div class="pf-cover"><h1>${esc(reportTitle)}</h1><div class="sub">${esc(t(STR.appName))} · ${new Date().toLocaleString(LANG==='ar'?'ar-EG':'en-GB')}</div></div>${bodyBlocks}</body></html>`;
+}
 function buildReportHtml(section, records, reportTitle, imageMap){
   const dir = LANG==='ar' ? 'rtl':'ltr';
   const bodyBlocks = records.map(r=> renderRecordPrintHtml(section, r, imageMap)).join('');
@@ -2200,8 +2253,8 @@ function writeAndPrintWindow(printWindow, htmlDocString){
 async function generatePdfBlobAndStore(htmlDocString, filename){
   const container = document.createElement('iframe');
   container.style.position='fixed'; container.style.left='-9999px'; container.style.top='0';
-    container.style.width='800px'; container.style.height='auto'; container.style.border='none';
-    container.style.visibility='hidden';
+    container.style.width='800px'; container.style.height='10000px'; container.style.border='none';
+    container.style.visibility='visible'; container.style.opacity='0'; container.style.pointerEvents='none';
   document.body.appendChild(container);
   try{
     container.srcdoc = htmlDocString;
@@ -2220,9 +2273,10 @@ async function generatePdfBlobAndStore(htmlDocString, filename){
       if(img.complete) return img.decode ? img.decode().catch(()=>{}) : Promise.resolve();
       return new Promise(res=>{ img.onload=res; img.onerror=res; setTimeout(res, 5000); });
     }));
-    await new Promise(res=>setTimeout(res, 200));
+    await new Promise(res=>setTimeout(res, 500));
+    container.style.height = Math.max(1000, Math.min(30000, body.scrollHeight + 40)) + 'px';
 
-    const canvas = await window.html2canvas(body, {scale:2, useCORS:true, backgroundColor:'#ffffff', windowWidth:800, allowTaint:true, logging:false, letterRendering:true});
+    const canvas = await window.html2canvas(body, {scale:2, useCORS:true, backgroundColor:'#ffffff', windowWidth:800, allowTaint:true, logging:false, letterRendering:true, useCORS:true, imageTimeout:15000});
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p','pt','a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -2986,13 +3040,14 @@ document.addEventListener('click', e=>{
   else if(action==='export-xlsx'){ exportSectionXLSX(el.getAttribute('data-section')); }
   else if(action==='export-csv-month'){
     const {month,year}=state.monthly; const prefix = `${year}-${String(month).padStart(2,'0')}`;
-    exportSectionCSV(el.getAttribute('data-section'), r=> r.date && r.date.startsWith(prefix));
+    const sectionId=el.getAttribute('data-section'); exportSectionCSV(sectionId, r=> r.date && r.date.startsWith(prefix), `${sectionId}_Monthly_${prefix}.csv`);
   }
   else if(action==='export-xlsx-month'){
     const {month,year}=state.monthly; const prefix = `${year}-${String(month).padStart(2,'0')}`;
-    exportSectionXLSX(el.getAttribute('data-section'), r=> r.date && r.date.startsWith(prefix));
+    const sectionId=el.getAttribute('data-section'); exportSectionXLSX(sectionId, r=> r.date && r.date.startsWith(prefix), `${sectionId}_Monthly_${prefix}.xlsx`);
   }
   else if(action==='export-combined-month'){ exportCombinedMonth(); }
+  else if(action==='export-combined-month-pdf'){ exportCombinedMonthPDF(); }
   else if(action==='share-record-pdf'){ shareRecordAsPDF(el.getAttribute('data-section'), el.getAttribute('data-id')); }
   else if(action==='share-filtered-pdf'){ shareFilteredPDF(el.getAttribute('data-section')); }
   else if(action==='share-daily-pdf'){ shareDailyPDF(el.getAttribute('data-section'), todayISO()); }
