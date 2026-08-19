@@ -244,8 +244,18 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 .auth-box{width:100%; max-width:460px; background:rgba(255,255,255,.96); border:1px solid rgba(255,255,255,.72); border-radius:14px; padding:22px 22px 20px; box-shadow:0 14px 40px rgba(0,0,0,.22);}
 .auth-logo{width:76px; height:76px; border-radius:18px; background:#fff; border:3px solid rgba(14,165,160,.38); color:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:32px; margin:0 auto 12px;}
 .auth-logo img{width:100%;height:100%;object-fit:cover;display:block;}
+.logo.icon-fallback,.auth-logo.icon-fallback{background:linear-gradient(135deg,var(--accent),var(--teal));color:#fff;display:flex;align-items:center;justify-content:center;}
+.logo.icon-fallback::after,.auth-logo.icon-fallback::after{content:'QA';font-family:Arial,sans-serif;font-weight:900;letter-spacing:-1px;color:#fff;}
 .auth-title{text-align:center; font-size:20px; font-weight:800; color:var(--navy); margin-bottom:4px;}
 .auth-welcome-quote{text-align:center;color:#0B807C;font-size:13px;line-height:1.7;font-weight:700;margin:0 auto 14px;max-width:360px;}
+@media (max-width:600px){
+  .auth-screen{min-height:calc(100vh - 148px);padding:18px 10px;background-position:center center;}
+  .auth-box{max-width:430px;padding:18px 14px 16px;border-radius:16px;}
+  .auth-logo{width:68px;height:68px;margin-bottom:9px;}
+  .auth-title{font-size:19px;}
+  .auth-welcome-quote{font-size:12px;margin-bottom:9px;}
+  .auth-sub{font-size:12px;margin-bottom:12px;}
+}
 .auth-sub{text-align:center; font-size:13px; color:var(--muted); margin-bottom:18px;}
 .user-chip{display:flex; align-items:center; justify-content:space-between; width:100%; background:#fff; border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; text-align:start;}
 .user-chip:active{background:#EAF2FC;}
@@ -327,7 +337,8 @@ const SESSION_TAGLINE = WELCOME_TAGLINES[Math.floor(Math.random()*WELCOME_TAGLIN
 
 /* شعار مخصص (درع + علامة صح) بدل الإيموجي - متسق مع أيقونة التطبيق */
 const APP_ICON_URL = 'assets/app-icon-professional.png';
-const AUTH_HEROES = ['assets/login-port.jpg','assets/login-truck.jpg','assets/login-processing.jpg','assets/login-reporting.jpg'];
+const AUTH_HEROES = ['assets/login-port.png','assets/login-truck.png','assets/login-processing.png','assets/login-reporting.png'];
+const IMAGE_FALLBACK_ATTR = `onerror="this.remove();this.parentElement.classList.add('icon-fallback');"`;
 const AUTH_WELCOME_MESSAGES = {
   ar:['الجودة تبدأ من معلومة موثقة.','كل سجل واضح يدعم قرارًا أفضل.','من الميدان إلى التقرير… نعمل بدقة.','سلامة المنتج مسؤولية تبدأ بالتفاصيل.'],
   en:['Quality starts with a documented fact.','Every clear record supports a better decision.','From field work to reporting — with precision.','Product safety begins with the details.']
@@ -1130,7 +1141,7 @@ function renderHeader(){
   <div class="app-header">
     <div class="header-top">
       <div class="brand">
-        <div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div>
+        <div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR} style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div>
         <div class="titles">
           <h1>${esc(t(STR.appName))}</h1>
           <div class="sub">${user?esc(user.name):'QA Supply Chain'}</div>
@@ -2406,7 +2417,7 @@ function renderAuthGate(){
   return `
   <div class="app-header">
     <div class="header-top">
-      <div class="brand"><div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
+      <div class="brand"><div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR} style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
       <div class="header-actions"><button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button></div>
     </div>
     <div class="tagline-strip">${LANG==='ar'?'عمليات الجودة وسلسلة الإمداد':'Quality & Supply Chain Operations'}</div>
@@ -2433,7 +2444,7 @@ function renderWelcomeScreen(){
       <span>➡️</span>
     </button>`).join('');
   return `
-  <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain"></div>
+  <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR}></div>
   <div class="auth-title">${esc(t(STR.welcomeTitle))}</div>
   <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
   <div class="auth-sub">${esc(t(STR.welcomeSub))}</div>
@@ -2512,7 +2523,7 @@ function renderLockScreen(){
   const user = isAdminTarget ? {name:t(STR.roleAdmin), biometricCredId: META_CACHE.adminBiometricCredId} : getUsers().find(u=>u.id===targetId);
   if(!user) return renderWelcomeScreen();
   return `
-  <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain"></div>
+  <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR}></div>
   <div class="auth-title">${esc(t(STR.lockWelcomeBack))}</div>
   <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
   <div class="auth-sub">${esc(user.name)}</div>
