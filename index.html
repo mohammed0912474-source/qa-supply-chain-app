@@ -149,6 +149,8 @@ input,select,textarea{font-family:inherit; font-size:15px;}
 /* Forms */
 .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 @media (max-width:560px){.form-grid{grid-template-columns:1fr;}}
+.grid-2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+@media (max-width:768px){.grid-2{grid-template-columns:1fr;}}
 .field{margin-bottom:2px;}
 .field label{display:block; font-size:12.5px; font-weight:700; color:var(--navy2); margin-bottom:4px;}
 .field .req{color:var(--danger);}
@@ -813,17 +815,10 @@ const BUILTIN_SECTIONS = [
           {key:'loss', type:'number', label:{ar:'Loss بالحاوية', en:'Loss in this Container'}},
           {key:'notes', type:'textarea', label:{ar:'ملاحظات', en:'Notes'}}
         ]},
-      {key:'productDetails', type:'group', label:{ar:'تفاصيل المنتج', en:'Product Details'},
-        fields:[
-          {key:'product', type:'text', label:{ar:'المنتج', en:'Product'}},
-          {key:'qty', type:'number', label:{ar:'الكمية', en:'Qty'}},
-          {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
-          {key:'prodDate', type:'date', label:{ar:'تاريخ الإنتاج', en:'Prod. Date'}},
-          {key:'expDate', type:'date', label:{ar:'تاريخ الانتهاء', en:'Exp. Date'}},
-          {key:'notes', type:'textarea', label:{ar:'ملاحظات', en:'Notes'}},
-          {key:'productView', type:'image', label:{ar:'صورة المنتج (Product View)', en:'Product View'}},
-          {key:'issuePhoto', type:'image', label:{ar:'توثيق مشكلة المنتج (إن وُجدت)', en:'Product Issue Documentation (if any)'}}
-        ]},
+      {key:'ncType', type:'select', label:{ar:'نوع الـ NC', en:'NC Type'},
+        options:[SEL('from_container','From Container','From Container'), SEL('handling','During Handling','During Handling'), SEL('other','أخرى','Other')]},
+      {key:'productView', type:'image', label:{ar:'صورة المنتج (Product View)', en:'Product View'}},
+      {key:'issuePhoto', type:'image', label:{ar:'توثيق مشكلة المنتج (إن وُجدت)', en:'Product Issue Documentation (if any)'}},
       {key:'totalNC', type:'number', label:{ar:'إجمالي Total NC', en:'Total NC'}},
       {key:'ncReason', type:'textarea', label:{ar:'سبب/توضيح الـ NC', en:'NC Reason'}},
       {key:'ncTreated', type:'number', label:{ar:'الكمية المعاد توجيهها (Readressed)', en:'Readressed'}},
@@ -1229,6 +1224,7 @@ function renderHome(){
 function computeContainerAgg(records){
   let totalNC=0, totalTreated=0, totalBillQty=0, totalContainers=0, totalLoss=0, totalReback=0;
   const conditionTally={};
+  const ncTypeTally={from_container:0, handling:0, other:0};
   records.forEach(r=>{
     totalNC += parseFloat(r.totalNC)||0;
     totalTreated += parseFloat(r.ncTreated)||0;
@@ -1236,9 +1232,10 @@ function computeContainerAgg(records){
     totalContainers += parseContainerCount(r);
     totalLoss += parseFloat(r.totalLoss)||0;
     totalReback += parseFloat(r.totalReback)||0;
+    if(r.ncType) ncTypeTally[r.ncType] = (ncTypeTally[r.ncType]||0) + 1;
     (r.containerDetails||[]).forEach(cd=>{ if(cd.condition){ const normalized=['damaged','repair'].includes(cd.condition)?'bad':cd.condition; conditionTally[normalized]=(conditionTally[normalized]||0)+1; } });
   });
-  return {totalNC,totalTreated,totalBillQty,totalContainers,totalLoss,totalReback,conditionTally,count:records.length};
+  return {totalNC,totalTreated,totalBillQty,totalContainers,totalLoss,totalReback,conditionTally,ncTypeTally,count:records.length};
 }
 function computeTruckAgg(records){
   const total = records.length;
@@ -1346,6 +1343,12 @@ function renderDashboard(){
   const ncQty = sumField(rebacking,'mergeQty');
   const damagedQty = sumField(rebacking,'damagedQty');
   const processedRate = pct(processedQty,ncQty);
+  const rebackLossRate = pct(damagedQty,ncQty);
+  const ncTypeParts = [
+    {label:'From Container', value:cAgg.ncTypeTally.from_container, color:'var(--accent)'},
+    {label:'During Handling', value:cAgg.ncTypeTally.handling, color:'var(--gold)'},
+    {label:LANG==='ar'?'أخرى':'Other', value:cAgg.ncTypeTally.other, color:'var(--teal)'}
+  ].filter(p=>p.value>0);
   const transportTally = {};
   containers.forEach(r=>{ const k=r.transportMethod||'unknown'; transportTally[k]=(transportTally[k]||0)+1; });
   const transportLabels = {air:{ar:'عبر المطار',en:'By Air'},sea:{ar:'عبر الميناء',en:'By Sea/Port'},road:{ar:'عبر الطريق',en:'By Road'},unknown:{ar:'غير محدد',en:'Not specified'}};
@@ -1358,7 +1361,7 @@ function renderDashboard(){
   return `<div class="card"><div class="section-title"><div><h2>📊 ${esc(t(STR.dashboard))}</h2><div class="hint">${LANG==='ar'?'تحليل مستقل لكل مساحة عمل باستخدام سجلاتها الفعلية':'Independent analytics for every workspace using its own records'}</div></div></div>${periodControls}</div>
   ${renderSectionKpiPanel(LANG==='ar'?'تحليل الشحنات':'Shipment Analytics',LANG==='ar'?'صورة تشغيلية للشحنات وطرق النقل ومستوى المطابقة':'Operational view of shipments, transport methods, and conformity',[{label:LANG==='ar'?'البوالص المسجلة':'Bills Logged',value:containers.length},{label:LANG==='ar'?'إجمالي الحاويات':'Total Containers',value:cAgg.totalContainers},{label:LANG==='ar'?'إجمالي الكميات':'Total Bill Quantity',value:cAgg.totalBillQty},{label:'Total NC',value:cAgg.totalNC,tone:cAgg.totalNC?'warn':'good'},{label:LANG==='ar'?'معدل معالجة NC':'NC Resolved Rate',value:resolvedRate,suffix:'%',tone:resolvedRate==null?'neutral':resolvedRate>=80?'good':resolvedRate>=50?'warn':'bad'},{label:LANG==='ar'?'الفاقد من الكمية':'Loss % of Bill Qty',value:lossRate,suffix:'%',tone:lossRate==null?'neutral':lossRate<=2?'good':'warn'}],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:'')}
   ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.total},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:uniqueNonEmpty(trucks,'transporter')}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div>`)}
-  ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rebacking.length},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>`)}
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rebacking.length},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'},{label:LANG==='ar'?'نسبة الفاقد':'Loss Rate',value:rebackLossRate,suffix:'%',tone:rebackLossRate<=2?'good':'warn'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>${ncTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC':'NC Types'}</h4>${renderDonut(ncTypeParts)}</div>`:''}</div>`)}
   <div class="card chart-card"><div class="section-title"><h3 style="margin:0;">${LANG==='ar'?'الاتجاه العام للفاقد وNC':'Overall NC & Loss Trend'}</h3></div>${renderBarChart(trendData('totalNC',state.dashboardTrendMonths||6),'var(--accent)')}</div>`;
 }
 
@@ -1639,6 +1642,20 @@ async function hydrateAllImages(){
 
 function updateComputedDisplays(section){
   if(!state.currentRecord) return;
+  if(section.id==='containers'){
+    const details = Array.isArray(state.currentRecord.containerDetails) ? state.currentRecord.containerDetails : [];
+    const totalQty = details.reduce((s,c)=>s+(parseFloat(c.qty)||0),0);
+    const totalNC = details.reduce((s,c)=>s+(parseFloat(c.nc)||0),0);
+    const totalLoss = details.reduce((s,c)=>s+(parseFloat(c.loss)||0),0);
+    state.currentRecord.billQty = totalQty;
+    state.currentRecord.containerCount = details.length;
+    state.currentRecord.totalNC = totalNC;
+    state.currentRecord.totalLoss = totalLoss;
+    const bqEl = document.getElementById('billQty'); if(bqEl) bqEl.value = totalQty;
+    const ccEl = document.getElementById('containerCount'); if(ccEl) ccEl.value = details.length;
+    const ncEl = document.getElementById('totalNC'); if(ncEl) ncEl.value = totalNC;
+    const lsEl = document.getElementById('totalLoss'); if(lsEl) lsEl.value = totalLoss;
+  }
   section.fields.filter(f=>f.type==='computed').forEach(f=>{
     const el = document.getElementById('computed-'+f.key);
     if(!el) return;
