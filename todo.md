@@ -101,3 +101,11 @@
 - [x] تصحيح تحليلات معالجة المنتجات (إجمالي NC، الكمية المعالجة، التالف، النِسَب) بدقة تامة
 - [x] ربط التحليلات بالسجلات المنتهية (Completed) لقياس الإنجاز الفعلي في كل الأقسام
 - [x] اختبار التعديلات وتجهيز حزمة ZIP محدثة
+- [ ] فحص النسخة المنشورة وتشخيص سبب تعطل فتح السجلات
+- [ ] إصلاح منطق عرض السجلات وتجنب أخطاء البيانات المفقودة
+- [ ] اختبار التطبيق بعد الإصلاح وتجهيز حزمة ZIP مستقرة للرفع
+- [x] Fix JavaScript error in renderRecordTable (missing headings variable)
+- [x] Fix analytics to only count 'Completed' records while showing total counts in labels
+- [x] Implement automated quantity and NC aggregation for shipments
+- [x] Fix PDF export potentially opening blank pages by adding print delay
+- [x] Add direct links to images in 'View' mode

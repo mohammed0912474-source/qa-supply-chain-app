@@ -1095,6 +1095,18 @@ function newRecord(section){
 }
 
 /* ===================== Auth / User accounts ===================== */
+/* ---- Automation / Auto-calculation ---- */
+function updateAggregates(sectionId, record){
+  if(sectionId==='containers'){
+    const details = asArray(record.containerDetails);
+    record.billQty = details.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);
+    record.totalNC = details.reduce((sum, item) => sum + (parseFloat(item.nc) || 0), 0);
+    record.totalLoss = details.reduce((sum, item) => sum + (parseFloat(item.loss) || 0), 0);
+    record.totalReback = details.reduce((sum, item) => sum + (parseFloat(item.reback) || 0), 0);
+    record.containerCount = details.length;
+  }
+}
+
 function getUsers(){ return USERS_CACHE.list; }
 function saveUserRemote(user){ return qaCol('users/items').doc(user.id).set(user); }
 function deleteUserRemote(userId){ return qaCol('users/items').doc(userId).delete(); }
@@ -1222,10 +1234,14 @@ function renderHome(){
 
 /* ---- Dashboard / Analytics ---- */
 function computeContainerAgg(records){
+  // Only compute analytics based on "completed" records as per user request
+  const completedRecords = records.filter(r => r.workStatus === 'completed');
+  
   let totalNC=0, totalTreated=0, totalBillQty=0, totalContainers=0, totalLoss=0, totalReback=0;
   const conditionTally={};
   const ncTypeTally={from_container:0, handling:0, other:0};
-  records.forEach(r=>{
+  
+  completedRecords.forEach(r=>{
     totalNC += parseFloat(r.totalNC)||0;
     totalTreated += parseFloat(r.ncTreated)||0;
     totalBillQty += parseFloat(r.billQty)||0;
@@ -1235,13 +1251,16 @@ function computeContainerAgg(records){
     if(r.ncType) ncTypeTally[r.ncType] = (ncTypeTally[r.ncType]||0) + 1;
     (r.containerDetails||[]).forEach(cd=>{ if(cd.condition){ const normalized=['damaged','repair'].includes(cd.condition)?'bad':cd.condition; conditionTally[normalized]=(conditionTally[normalized]||0)+1; } });
   });
-  return {totalNC,totalTreated,totalBillQty,totalContainers,totalLoss,totalReback,conditionTally,ncTypeTally,count:records.length};
+  
+  return {totalNC,totalTreated,totalBillQty,totalContainers,totalLoss,totalReback,conditionTally,ncTypeTally,count:completedRecords.length, allCount: records.length};
 }
 function computeTruckAgg(records){
-  const total = records.length;
-  const accepted = records.filter(r=>r.inspectionResult==='accepted').length;
-  const rejected = records.filter(r=>r.inspectionResult==='rejected').length;
-  return {total, accepted, rejected};
+  // Only compute analytics based on "completed" records as per user request
+  const completedRecords = records.filter(r => r.workStatus === 'completed');
+  const total = completedRecords.length;
+  const accepted = completedRecords.filter(r=>r.inspectionResult==='accepted').length;
+  const rejected = completedRecords.filter(r=>r.inspectionResult==='rejected').length;
+  return {total, accepted, rejected, allCount: records.length};
 }
 function lastMonths(n){
   const arr=[]; const now = new Date();
@@ -1359,8 +1378,8 @@ function renderDashboard(){
   const monthOptions=Array.from({length:12},(_,i)=>i+1);
   const periodControls=`<div class="period-toggle"><button class="btn btn-sm ${period==='all'?'btn-primary active':'btn-outline'}" data-action="dashboard-period" data-value="all">${LANG==='ar'?'كل الفترة':'All time'}</button><button class="btn btn-sm ${period==='month'?'btn-primary active':'btn-outline'}" data-action="dashboard-period" data-value="month">${LANG==='ar'?'شهر محدد':'Specific month'}</button>${period==='month'?`<select data-action="monthly-month">${monthOptions.map(m=>`<option value="${m}" ${m==state.monthly.month?'selected':''}>${m}</option>`).join('')}</select><select data-action="monthly-year">${years.map(y=>`<option value="${y}" ${y==state.monthly.year?'selected':''}>${y}</option>`).join('')}</select>`:''}</div>`;
   return `<div class="card"><div class="section-title"><div><h2>📊 ${esc(t(STR.dashboard))}</h2><div class="hint">${LANG==='ar'?'تحليل مستقل لكل مساحة عمل باستخدام سجلاتها الفعلية':'Independent analytics for every workspace using its own records'}</div></div></div>${periodControls}</div>
-  ${renderSectionKpiPanel(LANG==='ar'?'تحليل الشحنات':'Shipment Analytics',LANG==='ar'?'صورة تشغيلية للشحنات وطرق النقل ومستوى المطابقة':'Operational view of shipments, transport methods, and conformity',[{label:LANG==='ar'?'البوالص المسجلة':'Bills Logged',value:containers.length},{label:LANG==='ar'?'إجمالي الحاويات':'Total Containers',value:cAgg.totalContainers},{label:LANG==='ar'?'إجمالي الكميات':'Total Bill Quantity',value:cAgg.totalBillQty},{label:'Total NC',value:cAgg.totalNC,tone:cAgg.totalNC?'warn':'good'},{label:LANG==='ar'?'معدل معالجة NC':'NC Resolved Rate',value:resolvedRate,suffix:'%',tone:resolvedRate==null?'neutral':resolvedRate>=80?'good':resolvedRate>=50?'warn':'bad'},{label:LANG==='ar'?'الفاقد من الكمية':'Loss % of Bill Qty',value:lossRate,suffix:'%',tone:lossRate==null?'neutral':lossRate<=2?'good':'warn'}],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:'')}
-  ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.total},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:uniqueNonEmpty(trucks,'transporter')}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div>`)}
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل الشحنات':'Shipment Analytics',LANG==='ar'?'صورة تشغيلية للشحنات وطرق النقل ومستوى المطابقة':'Operational view of shipments, transport methods, and conformity',[{label:LANG==='ar'?'البوالص المسجلة':'Bills Logged',value:cAgg.allCount},{label:LANG==='ar'?'إجمالي الحاويات':'Total Containers',value:cAgg.totalContainers},{label:LANG==='ar'?'إجمالي الكميات':'Total Bill Quantity',value:cAgg.totalBillQty},{label:'Total NC',value:cAgg.totalNC,tone:cAgg.totalNC?'warn':'good'},{label:LANG==='ar'?'معدل معالجة NC':'NC Resolved Rate',value:resolvedRate,suffix:'%',tone:resolvedRate==null?'neutral':resolvedRate>=80?'good':resolvedRate>=50?'warn':'bad'},{label:LANG==='ar'?'الفاقد من الكمية':'Loss % of Bill Qty',value:lossRate,suffix:'%',tone:lossRate==null?'neutral':lossRate<=2?'good':'warn'}],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:'')}
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.allCount},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:uniqueNonEmpty(trucks,'transporter')}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div>`)}
   ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rebacking.length},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'},{label:LANG==='ar'?'نسبة الفاقد':'Loss Rate',value:rebackLossRate,suffix:'%',tone:rebackLossRate<=2?'good':'warn'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>${ncTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC':'NC Types'}</h4>${renderDonut(ncTypeParts)}</div>`:''}</div>`)}
   <div class="card chart-card"><div class="section-title"><h3 style="margin:0;">${LANG==='ar'?'الاتجاه العام للفاقد وNC':'Overall NC & Loss Trend'}</h3></div>${renderBarChart(trendData('totalNC',state.dashboardTrendMonths||6),'var(--accent)')}</div>`;
 }
@@ -1445,9 +1464,9 @@ function refreshSectionFilterPreview(sectionId){
 function renderRecordActions(sectionId, recordId){
   return `<div class="record-actions"><button class="btn btn-primary btn-sm" data-action="view-record" data-section="${sectionId}" data-id="${recordId}">${LANG==='ar'?'عرض':'View'}</button><button class="btn btn-quiet btn-sm" data-action="share-record-pdf" data-section="${sectionId}" data-id="${recordId}">PDF</button><button class="btn btn-quiet btn-sm" data-action="edit-record" data-section="${sectionId}" data-id="${recordId}">${LANG==='ar'?'تعديل':'Edit'}</button><button class="btn btn-danger btn-sm" data-action="delete-record" data-section="${sectionId}" data-id="${recordId}" title="${esc(t(STR.delete))}">×</button></div>`;
 }
-function detailValue(label, value){
+function detailValue(label, value, isHtml = false){
   const shown = value === 0 ? '0' : (value == null || value === '' ? '—' : String(value));
-  return `<div class="detail-item"><span class="detail-label">${esc(label)}</span><strong class="detail-value">${esc(shown)}</strong></div>`;
+  return `<div class="detail-item"><span class="detail-label">${esc(label)}</span><strong class="detail-value">${isHtml ? shown : esc(shown)}</strong></div>`;
 }
 function renderDetailField(section, field, value){
   if(value == null || value === '' || (Array.isArray(value) && value.length===0)) return '';
@@ -1461,7 +1480,7 @@ function renderDetailField(section, field, value){
     return dates ? `<section class="detail-section"><h3>${esc(label)}</h3><div class="detail-subgrid">${dates}</div></section>` : '';
   }
   if(field.type==='image'){
-    const imgs = asArray(value).filter(Boolean).map(src=>`<img class="detail-image" src="${esc(src)}" alt="${esc(label)}">`).join('');
+    const imgs = asArray(value).filter(Boolean).map(src=>`<a href="${esc(src)}" target="_blank" class="detail-image-link"><img class="detail-image" src="${esc(src)}" alt="${esc(label)}"></a>`).join('');
     return imgs ? `<section class="detail-section"><h3>${esc(label)}</h3><div class="detail-images">${imgs}</div></section>` : '';
   }
   return `<section class="detail-section"><div class="detail-grid">${detailValue(label, field.type==='select' ? (selectLabel(section,field.key,value)||value) : value)}</div></section>`;
@@ -1476,17 +1495,28 @@ function renderRecordDetail(sectionId, record){
 function renderRecordTable(section, records){
   const isShipment = section.id==='containers';
   const isTruck = section.id==='trucks';
+  const isRebacking = section.id==='rebacking';
+
+  let headings = [];
+  if(isShipment) headings = LANG==='ar' ? ['التاريخ', 'رقم البوليصة', 'المنتج', 'الناقل', 'الحالة', 'إجراءات'] : ['Date', 'BL Number', 'Product', 'Carrier', 'Status', 'Actions'];
+  else if(isTruck) headings = LANG==='ar' ? ['التاريخ', 'رقم العربة', 'المنتج', 'الوجهة', 'الحالة', 'إجراءات'] : ['Date', 'Truck No', 'Product', 'Destination', 'Status', 'Actions'];
+  else if(isRebacking) headings = LANG==='ar' ? ['التاريخ', 'المنتج', 'إجراءات'] : ['Date', 'Product', 'Actions'];
+  else headings = LANG==='ar' ? ['التاريخ', 'المعلومات', 'إجراءات'] : ['Date', 'Info', 'Actions'];
+
   const rows = records.map(record=>{
     const status = statusMeta(section, record);
     const workStatus = record.workStatus || "working";
     const workTone = workStatus==="completed"?"success":"warn";
     const workLabel = workStatus==="completed"?(LANG==="ar"?"منتهية":"Completed"):(LANG==="ar"?"قيد العمل":"Working");
     const rowClass = workStatus==="completed"?"row-completed":"row-working";
+    
     if(isShipment) return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(record.blNumber||"—")}</div><div class="record-secondary">${record.containerCount?`${record.containerCount} ${LANG==="ar"?"حاوية":"containers"}`:""}</div></td><td><div class="record-product">${esc(record.productDesc||"—")}</div><div class="record-secondary">${esc(record.countryOfOrigin||"")}</div></td><td>${esc(selectLabel(section,"transportMethod",record.transportMethod)||record.transportMethod||"—")}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span> <span class="status-badge badge-outline ${workTone}">${esc(workLabel)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
     if(isTruck) return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(record.truckNo||"—")}</div><div class="record-secondary">${esc(record.transporter||"")}</div></td><td><div class="record-product">${esc(productSearchText(record)||"—")}</div></td><td>${esc(record.destination||"—")}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span> <span class="status-badge badge-outline ${workTone}">${esc(workLabel)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
-    const primary = section.listFields.map(key=>record[key]).filter(Boolean).join(" · ");
+    
+    const primary = (section.listFields || []).map(key=>record[key]).filter(Boolean).join(" · ");
     return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(primary||"—")}</div></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
   }).join("");
+  
   return `<div class="records-table-wrap"><table class="records-table"><thead><tr>${headings.map(label=>`<th>${esc(label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function filterField(label, control){ return `<div class="filter-field"><label>${label}</label>${control}</div>`; }
@@ -2262,6 +2292,10 @@ function writeAndPrintWindow(printWindow, htmlDocString){
   printWindow.document.open();
   printWindow.document.write(htmlDocString);
   printWindow.document.close();
+  // Small delay to ensure styles and images are ready for printing
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
 }
 
 async function generatePdfBlobAndStore(htmlDocString, filename){
@@ -3011,6 +3045,9 @@ document.addEventListener('click', e=>{
     const rec = state.currentRecord;
     const missing = section.fields.filter(f=> f.required && (rec[f.key]===undefined || rec[f.key]===null || rec[f.key]===''));
     if(missing.length){ showToast(t(STR.requiredMissing)); return; }
+    
+    updateAggregates(sectionId, rec);
+    
     (async ()=>{
       try{
         await saveRecordRemote(sectionId, rec);
