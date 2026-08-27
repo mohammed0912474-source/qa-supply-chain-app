@@ -1476,14 +1476,17 @@ function renderRecordDetail(sectionId, record){
 function renderRecordTable(section, records){
   const isShipment = section.id==='containers';
   const isTruck = section.id==='trucks';
-  const headings = isShipment ? [LANG==='ar'?'التاريخ':'Date',LANG==='ar'?'رقم البوليصة':'BL number',LANG==='ar'?'المنتج':'Product',LANG==='ar'?'النقل':'Transport',LANG==='ar'?'الحالة':'Status',''] : isTruck ? [LANG==='ar'?'التاريخ':'Date',LANG==='ar'?'رقم العربة':'Vehicle',LANG==='ar'?'المنتج':'Product',LANG==='ar'?'الوجهة':'Destination',LANG==='ar'?'نتيجة الفحص':'Inspection',''] : [LANG==='ar'?'التاريخ':'Date',LANG==='ar'?'السجل':'Record',''];
   const rows = records.map(record=>{
     const status = statusMeta(section, record);
-    if(isShipment) return `<tr><td>${esc(record.date||'—')}</td><td><div class="record-primary">${esc(record.blNumber||'—')}</div><div class="record-secondary">${record.containerCount?`${record.containerCount} ${LANG==='ar'?'حاوية':'containers'}`:''}</div></td><td><div class="record-product">${esc(record.productDesc||'—')}</div><div class="record-secondary">${esc(record.countryOfOrigin||'')}</div></td><td>${esc(selectLabel(section,'transportMethod',record.transportMethod)||record.transportMethod||'—')}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
-    if(isTruck) return `<tr><td>${esc(record.date||'—')}</td><td><div class="record-primary">${esc(record.truckNo||'—')}</div><div class="record-secondary">${esc(record.transporter||'')}</div></td><td><div class="record-product">${esc(productSearchText(record)||'—')}</div></td><td>${esc(record.destination||'—')}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
-    const primary = section.listFields.map(key=>record[key]).filter(Boolean).join(' · ');
-    return `<tr><td>${esc(record.date||'—')}</td><td><div class="record-primary">${esc(primary||'—')}</div></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
-  }).join('');
+    const workStatus = record.workStatus || "working";
+    const workTone = workStatus==="completed"?"success":"warn";
+    const workLabel = workStatus==="completed"?(LANG==="ar"?"منتهية":"Completed"):(LANG==="ar"?"قيد العمل":"Working");
+    const rowClass = workStatus==="completed"?"row-completed":"row-working";
+    if(isShipment) return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(record.blNumber||"—")}</div><div class="record-secondary">${record.containerCount?`${record.containerCount} ${LANG==="ar"?"حاوية":"containers"}`:""}</div></td><td><div class="record-product">${esc(record.productDesc||"—")}</div><div class="record-secondary">${esc(record.countryOfOrigin||"")}</div></td><td>${esc(selectLabel(section,"transportMethod",record.transportMethod)||record.transportMethod||"—")}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span> <span class="status-badge badge-outline ${workTone}">${esc(workLabel)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+    if(isTruck) return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(record.truckNo||"—")}</div><div class="record-secondary">${esc(record.transporter||"")}</div></td><td><div class="record-product">${esc(productSearchText(record)||"—")}</div></td><td>${esc(record.destination||"—")}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span> <span class="status-badge badge-outline ${workTone}">${esc(workLabel)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+    const primary = section.listFields.map(key=>record[key]).filter(Boolean).join(" · ");
+    return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(primary||"—")}</div></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+  }).join("");
   return `<div class="records-table-wrap"><table class="records-table"><thead><tr>${headings.map(label=>`<th>${esc(label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function filterField(label, control){ return `<div class="filter-field"><label>${label}</label>${control}</div>`; }
