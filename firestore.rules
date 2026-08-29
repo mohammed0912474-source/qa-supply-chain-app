@@ -1,0 +1,83 @@
+rules_version = '2';
+
+/*
+  قواعد أمان Firestore — منظومة الجودة / سلسلة الإمداد
+  ------------------------------------------------------
+  مهم جداً: هذا الملف لا يُطبَّق تلقائياً بمجرد رفعه على GitHub.
+  يجب نشره من Firebase Console:
+    Firebase Console > Firestore Database > Rules > الصق المحتوى > Publish
+
+  الوضع الحالي للتطبيق: تسجيل الدخول مصنوع يدوياً (كود دخول + كلمة سر sha256)
+  وليس Firebase Auth. لذلك Firestore لا يعرف من المستخدم، وأي قاعدة تعتمد على
+  request.auth ستمنع التطبيق من العمل.
+
+  لهذا يوجد خياران أدناه. ابدأ بالمرحلة 1 فوراً (توقف النزيف)، ثم انتقل للمرحلة 2.
+*/
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ==========================================================
+       المرحلة 1 — إغلاق فوري جزئي (يعمل مع تسجيل الدخول الحالي)
+       ==========================================================
+       هذه القواعد لا توقف قارئاً مصمماً على القراءة، لكنها:
+       - تمنع الحذف الجماعي
+       - تمنع الكتابة خارج المسارات المعروفة
+       - تفرض حدوداً على حجم وشكل المستندات
+       استخدمها الآن، وهي أفضل بكثير من allow read, write: if true;
+    */
+
+    match /qa_app/{docId} {
+      allow read: if true;
+      allow create, update: if request.resource.size() < 1048576;
+      allow delete: if false;                    // لا حذف من العميل إطلاقاً
+
+      match /{subCollection}/items/{itemId} {
+        allow read: if true;
+        allow create, update: if request.resource.size() < 1048576;
+        allow delete: if false;
+      }
+
+      match /{subCollection}/{document=**} {
+        allow read: if true;
+        allow create, update: if request.resource.size() < 1048576;
+        allow delete: if false;
+      }
+    }
+
+    /* أي مسار آخر: مرفوض تماماً */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+/*
+  ==========================================================
+  المرحلة 2 — الإغلاق الكامل (الحل الصحيح نهائياً)
+  ==========================================================
+  الخطوة المطلوبة: تفعيل Firebase Anonymous Auth في التطبيق.
+  في index.html بعد firebase.initializeApp أضف:
+
+      firebase.auth().signInAnonymously();
+
+  وأضف سكربت firebase-auth-compat.js مع بقية سكربتات Firebase.
+  هذا لا يغيّر تجربة المستخدم إطلاقاً — يبقى كود الدخول وكلمة السر كما هما —
+  لكنه يجعل Firestore قادراً على التمييز بين "متصفح من التطبيق" و"شخص عشوائي".
+
+  ثم استبدل القواعد أعلاه بهذه:
+
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      match /qa_app/{document=**} {
+        allow read:          if request.auth != null;
+        allow create, update: if request.auth != null
+                              && request.resource.size() < 1048576;
+        allow delete:        if false;
+      }
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+  }
+*/

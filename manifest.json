@@ -1,16 +1,20 @@
 {
-  "name": "QA Supply Chain",
+  "name": "منظومة الجودة - سلسلة الإمداد",
   "short_name": "QA Supply Chain",
-  "description": "Quality and supply chain operations workspace for shipments, truck inspections, product processing, analytics, and monthly reports.",
+  "description": "مساحة عمل احترافية لعمليات الجودة وسلسلة الإمداد: الشحنات، فحص الشاحنات، معالجة المنتجات، التحليلات والتقارير الشهرية.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#F6F8FB",
+  "orientation": "portrait-primary",
+  "background_color": "#0A2540",
   "theme_color": "#0A2540",
-  "lang": "en",
-  "dir": "ltr",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
-    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
