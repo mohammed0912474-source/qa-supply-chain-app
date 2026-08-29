@@ -691,7 +691,7 @@ function renderWelcomeScreen(){
   const chips = users.map(u=>`
     <button class="user-chip" data-action="auth-pick-user" data-id="${u.id}">
       <div style="display:flex;align-items:center;">
-        ${u.profilePic ? `<img src="${u.profilePic}" class="profile-pic-chip">` : `<div class="profile-pic-chip" style="background:var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;">👤</div>`}
+        ${u.profilePic ? `<img src="${esc(u.profilePic)}" alt="" class="profile-pic-chip">` : `<div class="profile-pic-chip" style="background:var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;">👤</div>`}
         <div><div class="nm">${esc(u.name)}</div><div class="rl">${esc(u.role)}</div></div>
       </div>
       <span>➡️</span>
@@ -796,7 +796,7 @@ function showAccountModal(){
     <h3>👤 ${esc(t(STR.accessLog))}</h3>
     <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
       <div style="width:80px; height:80px; border-radius:50%; background:#eee; overflow:hidden; border:2px solid var(--accent); margin-bottom:10px; display:flex; align-items:center; justify-content:center; font-size:32px;">
-        ${user && user.profilePic ? `<img src="${user.profilePic}" style="width:100%;height:100%;object-fit:cover;">` : '👤'}
+        ${user && user.profilePic ? `<img src="${esc(user.profilePic)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '👤'}
       </div>
       <label class="file-btn" style="font-size:12px; padding:6px 12px;"><input type="file" accept="image/*" data-action="auth-update-profile-pic">📷 ${esc(t(STR.changePic))}</label>
     </div>
