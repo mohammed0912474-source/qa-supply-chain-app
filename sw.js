@@ -2,13 +2,15 @@
    إصلاح: كانت المسارات تشير إلى مجلد assets/ غير موجود، فكان cache.addAll يفشل بالكامل
    (فشل عنصر واحد يُسقط العملية كلها) والتطبيق لا يعمل دون اتصال إطلاقاً.
    الآن المسارات صحيحة من الجذر، والتخزين المبدئي مُحصَّن ضد فشل أي ملف مفرد. */
-const CACHE_NAME = 'qa-supply-chain-shell-v3';
+const CACHE_NAME = 'qa-supply-chain-shell-v4';
 const SHELL = [
   './',
   './index.html',
   './manifest.json',
   './app-part1.js',
   './app-part2.js',
+  './app-part3.js',
+  './app-part4.js',
   './app-icon-professional.png',
   './icon-192.png',
   './icon-512.png',
