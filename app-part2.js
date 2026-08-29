@@ -1,1300 +1,585 @@
 
 
-/* ===================== CSV / Export ===================== */
-function flattenRecordForExport(section, r){
-  const out = {};
-  section.fields.forEach(f=>{
-    if(f.type==='group'){
-      const arr = r[f.key]||[];
-      out[t(f.label)] = arr.map((item,i)=>{
-        const lines = f.fields.map(sf=>{
-          const val = sf.type==='image' ? `${(item[sf.key]||[]).length} ${LANG==='ar'?'صورة':'photo(s)'}` : (item[sf.key]!=null ? item[sf.key] : '');
-          return `${t(sf.label)}: ${val}`;
-        });
-        return `#${i+1}\n` + lines.join('\n');
-      }).join('\n\n');
-    } else if(f.type==='multiDate'){
-      const arr = r[f.key]||[];
-      out[t(f.label)] = arr.map(item=> `${item.prod||''} → ${item.exp||''}`).join('\n');
-    } else if(f.type==='image'){
-      out[t(f.label)] = (r[f.key]||[]).length + ' ' + (LANG==='ar'?'صورة':'photo(s)');
-    } else if(f.type==='select'){
-      const opt = (f.options||[]).find(o=>o.value===r[f.key]);
-      out[t(f.label)] = opt ? t(opt.label) : (r[f.key]||'');
-    } else if(f.type==='computed'){
-      let v; try{ v = f.compute(r); }catch(e){ v=null; }
-      out[t(f.label)] = (v==null||isNaN(v)) ? '' : v.toFixed(2)+'%';
-    } else {
-      out[t(f.label)] = r[f.key]!=null ? r[f.key] : '';
-    }
-  });
-  return out;
-}
-function computeColumnWidths(flatRows){
-  if(!flatRows.length) return [];
-  const headers = Object.keys(flatRows[0]);
-  return headers.map(h=>{
-    let maxLen = h.length;
-    flatRows.forEach(row=>{
-      const v = row[h]==null ? '' : String(row[h]);
-      v.split('\n').forEach(line=>{ if(line.length>maxLen) maxLen = line.length; });
-    });
-    return { wch: Math.min(Math.max(maxLen+2, 14), 45) };
-  });
+function renderTabbar(){
+  const items = [
+    {id:'home', view:'home', icon:NAV_ICONS.home, label:STR.home},
+    {id:'dashboard', view:'dashboard', icon:NAV_ICONS.dashboard, label:STR.dashboard},
+    {id:'chat', view:'chat', icon:NAV_ICONS.chat, label:STR.chat},
+    ...getAllSections().map(s=>({id:s.id, view:'list', sectionId:s.id, icon:SECTION_ICONS[s.id]||s.icon, label:s.name})),
+    {id:'monthly', view:'monthly', icon:NAV_ICONS.monthly, label:STR.monthly},
+    {id:'files', view:'files', icon:NAV_ICONS.files, label:STR.filesTab},
+    ...(isAdmin() ? [{id:'builder', view:'builder', icon:NAV_ICONS.builder, label:STR.builder}] : [])
+  ];
+  return `<div class="tabbar">${items.map(it=>{
+    const active = (state.view===it.view && (it.view!=='list' || state.viewSectionId===it.sectionId)) || (state.view==='form' && it.view==='list' && state.viewSectionId===it.sectionId);
+    return `<button class="tab-btn ${active?'active':''}" data-action="nav" data-view="${it.view}" data-section="${it.sectionId||''}">
+      <span class="ico">${it.icon}</span><span>${esc(t(it.label))}</span>
+    </button>`;
+  }).join('')}</div>`;
 }
 
-function toCSV(rowsObjArr){
-  if(!rowsObjArr.length) return '';
-  const headers = Object.keys(rowsObjArr[0]);
-  const escCsv = v=> `"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  const lines = [headers.map(escCsv).join(',')];
-  rowsObjArr.forEach(row=> lines.push(headers.map(h=>escCsv(row[h])).join(',')));
-  return '\uFEFF' + lines.join('\r\n');
-}
-
-function downloadFile(filename, content, mime){
-  const blob = new Blob([content], {type:mime});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
-  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
-}
-
-function exportSectionCSV(sectionId, filterFn, filenameOverride){
-  const section = getSection(sectionId);
-  let records = getRecords(sectionId);
-  if(filterFn) records = records.filter(filterFn);
-  const flat = records.map(r=> flattenRecordForExport(section, r));
-  const csv = toCSV(flat);
-  const filename = filenameOverride || `${section.id}_${todayISO()}.csv`;
-  downloadFile(filename, csv, 'text/csv;charset=utf-8;');
-  storeExportedFile(filename, 'csv', textToDataUrl(csv, 'text/csv;charset=utf-8'));
-  showToast(t(STR.savedOk));
-}
-
-let _sheetJsLoading = null;
-function loadSheetJS(){
-  if(window.XLSX) return Promise.resolve(true);
-  if(_sheetJsLoading) return _sheetJsLoading;
-  _sheetJsLoading = loadScriptWithFallback([
-    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
-  ]).then(()=> !!window.XLSX);
-  return _sheetJsLoading;
-}
-
-async function exportSectionXLSX(sectionId, filterFn, filenameOverride){
-  const section = getSection(sectionId);
-  let records = getRecords(sectionId);
-  if(filterFn) records = records.filter(filterFn);
-  const flat = records.map(r=> flattenRecordForExport(section, r));
-  const ok = await loadSheetJS();
-  if(!ok || !window.XLSX){ exportSectionCSV(sectionId, filterFn); showToast(t(STR.xlsxOfflineFallback)); return; }
-  const ws = XLSX.utils.json_to_sheet(flat);
-  ws['!cols'] = computeColumnWidths(flat);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, section.id.slice(0,28));
-  const filename = filenameOverride || `${section.id}_${todayISO()}.xlsx`;
-  XLSX.writeFile(wb, filename);
-  const base64 = XLSX.write(wb, {type:'base64', bookType:'xlsx'});
-  storeExportedFile(filename, 'xlsx', 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+base64);
-  showToast(t(STR.savedOk));
-}
-
-function safeSheetName(name, fallback){
-  const cleaned = String(name||fallback||'Sheet').replace(/[\\/:?*\[\]]/g,' ').trim().slice(0,31);
-  return cleaned || fallback || 'Sheet';
-}
-function styleMonthlySheet(ws, flat, title, period){
-  const headers = flat.length ? Object.keys(flat[0]) : [LANG==='ar'?'لا توجد سجلات':'No records'];
-  const data = flat.length ? flat : [{[headers[0]]:''}];
-  XLSX.utils.sheet_add_aoa(ws, [[title],[LANG==='ar'?'الفترة':'Period', period],[LANG==='ar'?'تاريخ إنشاء الملف':'Generated', new Date().toISOString().slice(0,10)]], {origin:'A1'});
-  XLSX.utils.sheet_add_json(ws, data, {origin:'A5', skipHeader:false});
-  ws['!cols'] = computeColumnWidths(flat.length ? flat : data).map(c=>({wch:Math.min(Math.max(c.wch,14),42)}));
-  ws['!freeze'] = {xSplit:0,ySplit:5};
-  ws['!autofilter'] = {ref:`A5:${String.fromCharCode(64+Math.min(headers.length,26))}${5+data.length}`};
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:Math.max(0,headers.length-1)}}];
-  return ws;
-}
-async function exportCombinedMonth(){
-  const {month, year} = state.monthly;
-  const prefix = `${year}-${String(month).padStart(2,'0')}`;
+function renderHome(){
   const sections = getAllSections();
-  const ok = await loadSheetJS();
-  if(!ok || !window.XLSX){
-    sections.forEach(s=> exportSectionCSV(s.id, r=> r.date && r.date.startsWith(prefix)));
-    showToast(t(STR.xlsxOfflineFallback));
-    return;
-  }
-  const wb = XLSX.utils.book_new();
-  const summaryRows = sections.map(s=>{
-    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
-    const numberFields = s.fields.filter(f=>f.type==='number');
-    const totals = numberFields.map(f=>`${t(f.label)}: ${recs.reduce((a,r)=>a+(parseFloat(r[f.key])||0),0)}`).join(' | ');
-    return { [LANG==='ar'?'القسم':'Section']:t(s.name), [LANG==='ar'?'عدد السجلات':'Records']:recs.length, [LANG==='ar'?'الإجماليات':'Totals']:totals||'—' };
-  });
-  const summary = XLSX.utils.aoa_to_sheet([[t(STR.appName)],[LANG==='ar'?'التقرير الشهري المؤسسي':'Monthly corporate operations report'],[LANG==='ar'?'الفترة':'Period',prefix],[LANG==='ar'?'تاريخ إنشاء الملف':'Generated',new Date().toISOString().slice(0,10)]]);
-  XLSX.utils.sheet_add_json(summary, summaryRows, {origin:'A6', skipHeader:false});
-  summary['!cols']=[{wch:28},{wch:14},{wch:60}]; summary['!freeze']={xSplit:0,ySplit:6}; summary['!autofilter']={ref:`A6:C${6+summaryRows.length}`}; summary['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}},{s:{r:1,c:0},e:{r:1,c:2}}];
-  XLSX.utils.book_append_sheet(wb, summary, safeSheetName(LANG==='ar'?'ملخص شهري':'Monthly Summary','Summary'));
-  sections.forEach(s=>{
-    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
-    const flat = recs.map(r=> flattenRecordForExport(s, r));
-    const ws = styleMonthlySheet(XLSX.utils.aoa_to_sheet([]), flat, `${t(s.name)} — ${prefix}`, prefix);
-    XLSX.utils.book_append_sheet(wb, ws, safeSheetName(t(s.name), s.id));
-  });
-  const filename = `QA_SupplyChain_Monthly_${prefix}.xlsx`;
-  XLSX.writeFile(wb, filename);
-  const base64 = XLSX.write(wb, {type:'base64', bookType:'xlsx'});
-  storeExportedFile(filename, 'xlsx', 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+base64);
-  notifyReportSaved(filename);
-  showToast(t(STR.savedOk));
-}
-async function exportCombinedMonthPDF(){
-  const {month, year} = state.monthly;
-  const prefix = `${year}-${String(month).padStart(2,'0')}`;
-  const sections = getAllSections();
-  const blocks = [];
-  for(const section of sections){
-    const records = getRecords(section.id).filter(r=>r.date && r.date.startsWith(prefix));
-    if(!records.length) continue;
-    const imageMap = await buildImageMapForRecords(section, records).catch(()=>({}));
-    blocks.push(`<div class="pf-sectiontitle">${esc(t(section.name))} <span>${records.length} ${LANG==='ar'?'سجل':'records'}</span></div>${records.map(r=>renderRecordPrintHtml(section,r,imageMap)).join('')}`);
-  }
-  if(!blocks.length){ showToast(t(STR.noRecords)); return; }
-  showToast(t(STR.generatingPdf));
-  const title = `${LANG==='ar'?'التقرير الشهري الموحد':'Combined monthly report'} — ${prefix}`;
-  const html = buildCombinedReportHtml(title, blocks.join(''));
-  const filename = `QA_SupplyChain_Monthly_${prefix}.pdf`;
-  const libsOk = await loadPdfLibs().catch(()=>false);
-  if(libsOk){ try{ await generatePdfBlobAndStore(html, filename); notifyReportSaved(filename); showToast(t(STR.savedOk)); return; }catch(err){ console.error('Combined PDF generation failed:',err); } }
-  const printWindow = window.open('', '_blank');
-  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
-  writeAndPrintWindow(printWindow, html);
-}
-
-
-/* ===================== PDF export (native browser print, no external dependencies) ===================== */
-function loadScriptWithFallback(urls){
-  return new Promise((resolve)=>{
-    let i = 0;
-    function tryNext(){
-      if(i >= urls.length){ resolve(false); return; }
-      const s = document.createElement('script');
-      s.src = urls[i];
-      s.async = true;
-      let settled = false;
-      const timeout = setTimeout(()=>{ if(!settled){ settled=true; s.remove(); i++; tryNext(); } }, 8000);
-      s.onload = ()=>{ if(!settled){ settled=true; clearTimeout(timeout); resolve(true); } };
-      s.onerror = ()=>{ if(!settled){ settled=true; clearTimeout(timeout); s.remove(); i++; tryNext(); } };
-      document.head.appendChild(s);
-    }
-    tryNext();
-  });
-}
-
-function pdfFieldValue(f, record){
-  const val = record[f.key];
-  if(f.type==='select'){ const opt=(f.options||[]).find(o=>o.value===val); return opt? esc(t(opt.label)) : (val? esc(val):'—'); }
-  if(f.type==='computed'){ let v; try{ v=f.compute(record); }catch(e){ v=null; } return (v==null||isNaN(v))?'—':(v.toFixed(2)+'%'); }
-  if(f.type==='multiDate'){ const arr=val||[]; return arr.length? arr.map(i=>`${esc(i.prod||'')} → ${esc(i.exp||'')}`).join('<br>') : '—'; }
-  if(f.type==='textarea') return val? esc(val).replace(/\n/g,'<br>') : '—';
-  return (val==null || val==='') ? '—' : esc(val);
-}
-
-function asArray(v){ return Array.isArray(v) ? v : []; }
-
-function collectImageIdsFromRecord(section, record){
-  let ids = [];
-  section.fields.forEach(f=>{
-    if(f.type==='image'){ ids = ids.concat(asArray(record[f.key])); }
-    if(f.type==='group'){
-      asArray(record[f.key]).forEach(item=>{
-        f.fields.forEach(sf=>{ if(sf.type==='image'){ ids = ids.concat(asArray(item[sf.key])); } });
-      });
-    }
-  });
-  return ids;
-}
-function collectImagePathsFromRecord(section, record){
-  const results = [];
-  section.fields.forEach(f=>{
-    if(f.type==='image'){
-      asArray(record[f.key]).forEach((id, idx)=> results.push({path:`${f.key}.${idx}`, id}));
-    }
-    if(f.type==='group'){
-      asArray(record[f.key]).forEach((item, gi)=>{
-        f.fields.forEach(sf=>{
-          if(sf.type==='image'){
-            asArray(item[sf.key]).forEach((id, idx)=> results.push({path:`${f.key}.${gi}.${sf.key}.${idx}`, id}));
-          }
-        });
-      });
-    }
-  });
-  return results;
-}
-let _retryingUploads = false;
-async function retryPendingImageUploads(){
-  if(_retryingUploads || !navigator.onLine) return;
-  _retryingUploads = true;
-  try{
-    const sections = getAllSections();
-    for(const section of sections){
-      const records = getRecords(section.id).slice();
-      for(const record of records){
-        const pending = collectImagePathsFromRecord(section, record).filter(p=> !/^https?:\/\//.test(p.id));
-        if(!pending.length) continue;
-        let changed = false;
-        for(const p of pending){
-          const dataUrl = await getImage(p.id);
-          if(!dataUrl) continue;
-          const url = await uploadToImgBB(dataUrl);
-          if(url){ setPath(record, p.path, url); changed = true; }
-        }
-        if(changed) await saveRecordRemote(section.id, record).catch(()=>{});
-      }
-    }
-  } finally { _retryingUploads = false; }
-}
-async function buildImageMapForRecords(section, records){
-  const allIds = new Set();
-  records.forEach(r=> collectImageIdsFromRecord(section, r).forEach(id=>allIds.add(id)));
-  const map = {};
-  for(const id of allIds){
-    map[id] = /^https?:\/\//.test(id) ? id : await getImage(id);
-  }
-  return map;
-}
-
-function renderRecordPrintHtml(section, record, imageMap){
-  const plainFields = section.fields.filter(f=>f.type!=='group' && f.type!=='image');
-  const rows = plainFields.map(f=> `<tr><td class="pf-label">${esc(t(f.label))}</td><td class="pf-value">${pdfFieldValue(f, record)}</td></tr>`).join('');
-
-  const topImageFields = section.fields.filter(f=>f.type==='image');
-  const topImages = topImageFields.map(f=>{
-    const ids = Array.isArray(record[f.key]) ? record[f.key] : [];
-    if(!ids.length) return '';
-    const imgs = ids.map(id=> imageMap[id] ? `<img crossorigin="anonymous" src="${imageMap[id]}">` : '').join('');
-    return `<div class="pf-imgblock"><div class="pf-imglabel">${esc(t(f.label))}</div><div class="pf-imggrid">${imgs}</div></div>`;
-  }).join('');
-
-  const groupFields = section.fields.filter(f=>f.type==='group');
-  const groups = groupFields.map(f=>{
-    const items = Array.isArray(record[f.key]) ? record[f.key] : [];
-    if(!items.length) return '';
-    const normalSub = f.fields.filter(sf=>sf.type!=='image');
-    const imageSub = f.fields.filter(sf=>sf.type==='image');
-    const itemsHtml = items.map((item,i)=>{
-      const subRows = normalSub.map(sf=>{
-        let val = item[sf.key];
-        if(sf.type==='select'){ const opt=(sf.options||[]).find(o=>o.value===val); val = opt? t(opt.label): val; }
-        return `<tr><td class="pf-label">${esc(t(sf.label))}</td><td class="pf-value">${val!=null && val!==''? esc(val):'—'}</td></tr>`;
-      }).join('');
-      const subImages = imageSub.map(sf=>{
-        const ids = Array.isArray(item[sf.key]) ? item[sf.key] : [];
-        if(!ids.length) return '';
-        const imgs = ids.map(id=> imageMap[id]? `<img crossorigin="anonymous" src="${imageMap[id]}">`:'').join('');
-        return `<div class="pf-imgblock"><div class="pf-imglabel">${esc(t(sf.label))}</div><div class="pf-imggrid">${imgs}</div></div>`;
-      }).join('');
-      return `<div class="pf-groupitem"><div class="pf-groupnum">#${i+1}</div><table class="pf-table">${subRows}</table>${subImages}</div>`;
-    }).join('');
-    return `<div class="pf-group"><div class="pf-grouptitle">${esc(t(f.label))}</div>${itemsHtml}</div>`;
-  }).join('');
-
-  return `<div class="pf-record">
-    <div class="pf-recordheader">${section.icon} ${esc(t(section.name))} — ${esc(record.date||'')}</div>
-    <table class="pf-table">${rows}</table>
-    ${topImages}
-    ${groups}
-  </div>`;
-}
-
-function buildCombinedReportHtml(reportTitle, bodyBlocks){
-  const dir = LANG==='ar' ? 'rtl':'ltr';
-  return `<!DOCTYPE html><html dir="${dir}" lang="${LANG}"><head><meta charset="UTF-8"><title>${esc(reportTitle)}</title><style>*{box-sizing:border-box;}body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#152232;padding:16px;margin:0;background:#fff}.pf-cover{background:linear-gradient(135deg,#0B2A4A,#0E355C);color:#fff;padding:22px;border-radius:10px;margin-bottom:18px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pf-cover h1{margin:0 0 6px;font-size:21px}.pf-cover .sub{font-size:12.5px;opacity:.85}.pf-sectiontitle{font-size:16px;font-weight:900;color:#0B2A4A;border-bottom:2px solid #2E7BD6;padding:8px 2px;margin:18px 0 10px}.pf-sectiontitle span{font-size:11px;color:#66768C;font-weight:600;margin-inline-start:8px}.pf-record{border:1px solid #DCE3EC;border-radius:10px;padding:16px;margin-bottom:16px;background:#fff;page-break-inside:avoid}.pf-recordheader{font-size:15px;font-weight:800;color:#0B2A4A;margin-bottom:10px;border-bottom:2px solid #2E7BD6;padding-bottom:6px}.pf-table{width:100%;border-collapse:collapse;margin-bottom:8px}.pf-table td{padding:6px 8px;border-bottom:1px solid #EEF2F7;font-size:12px;vertical-align:top}.pf-label{color:#66768C;font-weight:700;width:38%}.pf-value{color:#152232}.pf-imgblock{margin:8px 0}.pf-imglabel{font-size:11.5px;font-weight:700;color:#123A5E;margin-bottom:4px}.pf-imggrid{display:flex;flex-wrap:wrap;gap:8px}.pf-imggrid img{width:150px;height:150px;object-fit:cover;border-radius:6px;border:1px solid #DCE3EC}.pf-group{margin:10px 0;border-top:1px dashed #DCE3EC;padding-top:8px}.pf-grouptitle{font-weight:800;color:#0B2A4A;font-size:12.5px;margin-bottom:6px}.pf-groupitem{background:#FAFBFD;border:1px solid #EEF2F7;border-radius:8px;padding:8px;margin-bottom:8px}.pf-groupnum{font-size:11px;font-weight:700;color:#2E7BD6;margin-bottom:4px}@media print{body{padding:0}.pf-sectiontitle{page-break-after:avoid}}</style></head><body><div class="pf-cover"><h1>${esc(reportTitle)}</h1><div class="sub">${esc(t(STR.appName))} · ${new Date().toLocaleString(LANG==='ar'?'ar-EG':'en-GB')}</div></div>${bodyBlocks}</body></html>`;
-}
-function buildReportHtml(section, records, reportTitle, imageMap){
-  const dir = LANG==='ar' ? 'rtl':'ltr';
-  const bodyBlocks = records.map(r=> renderRecordPrintHtml(section, r, imageMap)).join('');
-  return `<!DOCTYPE html>
-<html dir="${dir}" lang="${LANG}">
-<head>
-<meta charset="UTF-8">
-<title>${esc(reportTitle)}</title>
-<style>
-  *{box-sizing:border-box;}
-  body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#152232;padding:16px;margin:0;background:#fff;}
-  .pf-cover{background:linear-gradient(135deg,#0B2A4A,#0E355C);color:#fff;padding:22px;border-radius:10px;margin-bottom:18px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .pf-cover h1{margin:0 0 6px;font-size:21px;}
-  .pf-cover .sub{font-size:12.5px;opacity:.85;}
-  .pf-record{border:1px solid #DCE3EC;border-radius:10px;padding:16px;margin-bottom:16px;background:#fff;page-break-inside:avoid;}
-  .pf-recordheader{font-size:15px;font-weight:800;color:#0B2A4A;margin-bottom:10px;border-bottom:2px solid #2E7BD6;padding-bottom:6px;}
-  .pf-table{width:100%;border-collapse:collapse;margin-bottom:8px;}
-  .pf-table td{padding:6px 8px;border-bottom:1px solid #EEF2F7;font-size:12px;vertical-align:top;}
-  .pf-label{color:#66768C;font-weight:700;width:38%;}
-  .pf-value{color:#152232;}
-  .pf-imgblock{margin:8px 0;}
-  .pf-imglabel{font-size:11.5px;font-weight:700;color:#123A5E;margin-bottom:4px;}
-  .pf-imggrid{display:flex;flex-wrap:wrap;gap:8px;}
-  .pf-imggrid img{width:150px;height:150px;object-fit:cover;border-radius:6px;border:1px solid #DCE3EC;}
-  .pf-group{margin:10px 0;border-top:1px dashed #DCE3EC;padding-top:8px;}
-  .pf-grouptitle{font-weight:800;color:#0B2A4A;font-size:12.5px;margin-bottom:6px;}
-  .pf-groupitem{background:#FAFBFD;border:1px solid #EEF2F7;border-radius:8px;padding:8px;margin-bottom:8px;}
-  .pf-groupnum{font-size:11px;font-weight:700;color:#2E7BD6;margin-bottom:4px;}
-  @media print{ body{padding:0;} }
-</style>
-</head>
-<body>
-  <div class="pf-cover">
-    <h1>${esc(reportTitle)}</h1>
-    <div class="sub">${esc(t(STR.appName))} · ${new Date().toLocaleString(LANG==='ar'?'ar-EG':'en-GB')}</div>
-  </div>
-  ${bodyBlocks}
-</body>
-</html>`;
-}
-
-let _pdfLibsLoading = null;
-function loadPdfLibs(){
-  if(window.jspdf && window.html2canvas) return Promise.resolve(true);
-  if(_pdfLibsLoading) return _pdfLibsLoading;
-  _pdfLibsLoading = (async ()=>{
-    if(!window.jspdf){
-      await loadScriptWithFallback([
-        'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-        'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'
-      ]);
-    }
-    if(!window.html2canvas){
-      await loadScriptWithFallback([
-        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
-        'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
-        'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'
-      ]);
-    }
-    return !!(window.jspdf && window.html2canvas);
-  })();
-  return _pdfLibsLoading;
-}
-
-function writeAndPrintWindow(printWindow, htmlDocString){
-  printWindow.document.open();
-  printWindow.document.write(htmlDocString);
-  printWindow.document.close();
-  // Small delay to ensure styles and images are ready for printing
-  setTimeout(() => {
-    printWindow.print();
-  }, 500);
-}
-
-async function generatePdfBlobAndStore(htmlDocString, filename){
-  const container = document.createElement('iframe');
-  container.style.position='fixed'; container.style.left='-9999px'; container.style.top='0';
-    container.style.width='800px'; container.style.height='10000px'; container.style.border='none';
-    container.style.visibility='visible'; container.style.opacity='0'; container.style.pointerEvents='none';
-  document.body.appendChild(container);
-  try{
-    container.srcdoc = htmlDocString;
-    await new Promise(res=>{ 
-      let loaded = false;
-      container.onload = () => { loaded = true; res(); };
-      setTimeout(() => { if(!loaded) res(); }, 3000);
-    });
-    const doc = container.contentDocument;
-    if(!doc) throw new Error('Failed to access iframe document');
-    const body = doc.body;
-    if(!body) throw new Error('Failed to access iframe body');
-    
-    const imgs = Array.from(body.querySelectorAll('img'));
-    await Promise.all(imgs.map(img=>{
-      if(img.complete) return img.decode ? img.decode().catch(()=>{}) : Promise.resolve();
-      return new Promise(res=>{ img.onload=res; img.onerror=res; setTimeout(res, 5000); });
-    }));
-    await new Promise(res=>setTimeout(res, 500));
-    container.style.height = Math.max(1000, Math.min(30000, body.scrollHeight + 40)) + 'px';
-
-    const canvas = await window.html2canvas(body, {scale:2, useCORS:true, backgroundColor:'#ffffff', windowWidth:800, allowTaint:true, logging:false, letterRendering:true, useCORS:true, imageTimeout:15000});
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p','pt','a4');
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth - 20;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const imgData = canvas.toDataURL('image/jpeg', 0.85);
-
-    let heightLeft = imgHeight, position = 0;
-    pdf.addImage(imgData, 'JPEG', 10, position + 10, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while(heightLeft > 0){
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 10, position + 10, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-    const dataUri = pdf.output('datauristring');
-    pdf.save(filename);
-    await storeExportedFile(filename, 'pdf', dataUri);
-    return true;
-  } finally {
-    document.body.removeChild(container);
-  }
-}
-
-async function generateOrViewReport(records, section, title, filename){
-  if(!records.length){ showToast(t(STR.noRecords)); return; }
-  showToast(t(STR.generatingPdf));
-  const libsOk = await loadPdfLibs().catch(()=>false);
-  const imageMap = await buildImageMapForRecords(section, records).catch(()=>({}));
-  const html = buildReportHtml(section, records, title, imageMap);
-  if(libsOk){
-    try{
-      await generatePdfBlobAndStore(html, filename);
-      showToast(t(STR.savedOk));
-      notifyReportSaved(filename);
-      return;
-    }catch(err){
-      console.error('PDF generation failed, falling back to print view', err);
-    }
-  }
-  /* لو تعذر تحميل أداة الـ PDF أو فشلت، نفتح معاينة في نافذة جديدة كخطة بديلة مضمونة */
-  const printWindow = window.open('', '_blank');
-  if(!printWindow){ showToast(t(STR.popupBlocked)); return; }
-  writeAndPrintWindow(printWindow, html);
-}
-
-async function notifyReportSaved(filename){
-  if(!('Notification' in window)) return;
-  let permission = Notification.permission;
-  if(permission === 'default'){
-    try{ permission = await Notification.requestPermission(); }
-    catch(e){ permission = 'denied'; }
-  }
-  if(permission !== 'granted'){
-    showToast(t(STR.notificationBlocked));
-    return;
-  }
-  const options = { body:`${t(STR.reportReadyBody)} ${filename||''}`.trim(), icon:'icon-192.png', badge:'icon-192.png', tag:'qa-report-ready', renotify:true, silent:false, vibrate:[120,60,120] };
-  try{
-    if('serviceWorker' in navigator){
-      const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification(t(STR.reportReadyTitle), options);
-    }else{
-      new Notification(t(STR.reportReadyTitle), options);
-    }
-  }catch(err){ console.warn('Report notification failed', err); }
-}
-
-async function shareRecordAsPDF(sectionId, recordId){
-  const section = getSection(sectionId);
-  const record = getRecords(sectionId).find(r=>r.id===recordId);
-  if(!section || !record) return;
-  await generateOrViewReport([record], section, `${t(section.name)} — ${record.date||''}`, `${section.id}_${record.date||todayISO()}.pdf`);
-}
-
-async function shareDailyPDF(sectionId, dateStr){
-  const section = getSection(sectionId);
-  const records = getRecords(sectionId).filter(r=>r.date===dateStr);
-  await generateOrViewReport(records, section, `${t(section.name)} — ${LANG==='ar'?'تقرير يوم':'Daily report'} ${dateStr}`, `${section.id}_daily_${dateStr}.pdf`);
-}
-
-async function shareFilteredPDF(sectionId){
-  const section = getSection(sectionId);
-  const records = getFilteredRecords(sectionId);
-  const title = `${t(section.name)} — ${LANG==='ar'?'نتائج مفلترة':'Filtered results'} (${records.length})`;
-  await generateOrViewReport(records, section, title, `${section.id}_filtered_${todayISO()}.pdf`);
-}
-
-async function shareMonthlyPDF(sectionId, year, month){
-  const section = getSection(sectionId);
-  const prefix = `${year}-${String(month).padStart(2,'0')}`;
-  const records = getRecords(sectionId).filter(r=>r.date && r.date.startsWith(prefix));
-  await generateOrViewReport(records, section, `${t(section.name)} — ${LANG==='ar'?'تقرير شهر':'Monthly report'} ${month}/${year}`, `${section.id}_monthly_${prefix}.pdf`);
-}
-
-/* ===================== Toast ===================== */
-function showToast(msg, duration){
-  const el = document.createElement('div'); el.className='toast'; el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(()=> el.remove(), duration||2400);
-}
-
-/* ===================== Auth screens ===================== */
-function renderAuthGate(){
-  const s = state.auth.screen;
-  let inner = '';
-  if(s==='welcome') inner = renderWelcomeScreen();
-  else if(s==='accessCode') inner = renderAccessCodeScreen();
-  else if(s==='register') inner = renderRegisterScreen();
-  else if(s==='adminSetup') inner = renderAdminSetupScreen();
-  else if(s==='adminLogin') inner = renderAdminLoginScreen();
-  else if(s==='findAccount') inner = renderFindAccountScreen();
-  else if(s==='lock') inner = renderLockScreen();
-  return `
-  <div class="app-header">
-    <div class="header-top">
-      <div class="brand"><div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR} style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
-      <div class="header-actions"><button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button></div>
-    </div>
-    <div class="tagline-strip">${LANG==='ar'?'عمليات الجودة وسلسلة الإمداد':'Quality & Supply Chain Operations'}</div>
-  </div>
-  <div class="container"><div class="auth-screen" style="background-image:url('${AUTH_HEROES[getAuthHeroIndex()]}');"><div class="auth-box">${inner}</div></div></div>`;
-}
-
-function getDeviceKnownUserIds(){ return Store.get('qa_deviceKnownUsers', []); }
-function markUserKnownOnThisDevice(userId){
-  if(!userId || userId==='__admin__') return;
-  const known = getDeviceKnownUserIds();
-  if(!known.includes(userId)){ known.push(userId); Store.set('qa_deviceKnownUsers', known); }
-}
-
-function renderWelcomeScreen(){
-  const knownIds = getDeviceKnownUserIds();
-  const users = getUsers().filter(u=>knownIds.includes(u.id));
-  const chips = users.map(u=>`
-    <button class="user-chip" data-action="auth-pick-user" data-id="${u.id}">
-      <div style="display:flex;align-items:center;">
-        ${u.profilePic ? `<img src="${u.profilePic}" class="profile-pic-chip">` : `<div class="profile-pic-chip" style="background:var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;">👤</div>`}
-        <div><div class="nm">${esc(u.name)}</div><div class="rl">${esc(u.role)}</div></div>
-      </div>
-      <span>➡️</span>
-    </button>`).join('');
-  return `
-  <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR}></div>
-  <div class="auth-title">${esc(t(STR.welcomeTitle))}</div>
-  <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
-  <div class="auth-sub">${esc(t(STR.welcomeSub))}</div>
-  ${users.length? `<div class="hint" style="margin-bottom:8px;">${esc(t(STR.whoAreYou))}</div>${chips}`:''}
-  <div class="auth-divider">${LANG==='ar'?'أو':'or'}</div>
-  <button class="btn btn-outline btn-block" style="margin-bottom:8px;" data-action="auth-goto" data-screen="findAccount">${esc(t(STR.existingUserNewDevice))}</button>
-  <button class="btn btn-primary btn-block" data-action="auth-goto" data-screen="accessCode">${esc(t(STR.newUserBtn))}</button>
-  <div style="text-align:center;margin-top:16px;">
-    <button class="link-btn" data-action="auth-goto-admin">${esc(t(STR.adminEntry))}</button>
-  </div>`;
-}
-
-function renderFindAccountScreen(){
-  return `
-  <div class="auth-title">🔎 ${esc(t(STR.findAccountTitle))}</div>
-  <div class="auth-sub">${esc(t(STR.findAccountSub))}</div>
-  <div class="field"><label>${esc(t(STR.name))}</label><input type="text" id="findAccountName" autocomplete="off" value="${esc(state.formTemp.findAccountName||'')}"></div>
-  <button class="btn btn-primary btn-block" style="margin-top:14px;" data-action="auth-find-account">${esc(t(STR.continue))}</button>
-  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
-}
-
-function renderAccessCodeScreen(){
-  return `
-  <div class="auth-title">🔑 ${esc(t(STR.accessCodeTitle))}</div>
-  <div class="auth-sub">${esc(t(STR.accessCodeSub))}</div>
-  <div class="field"><label>${esc(t(STR.accessCodeLabel))}</label><input type="text" id="accessCodeInput" autocomplete="off" value="${esc(state.formTemp.accessCodeInput||'')}"></div>
-  <button class="btn btn-primary btn-block" style="margin-top:14px;" data-action="auth-submit-accesscode">${esc(t(STR.continue))}</button>
-  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
-}
-
-function renderRegisterScreen(){
-  const bio = state.regTempBiometric;
-  return `
-  <div class="auth-title">📝 ${esc(t(STR.registerTitle))}</div>
-  <div class="auth-sub">${esc(t(STR.registerSub))}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.name))}</label><input type="text" id="regName" value="${esc(state.formTemp.regName||'')}"></div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.role))}</label>
-    <select id="regRole">${ROLE_OPTIONS.map(r=>`<option value="${esc(r.v)}" ${(state.formTemp.regRole||ROLE_OPTIONS[0].v)===r.v?'selected':''}>${esc(t(r.l))}</option>`).join('')}</select>
-  </div>
-  <div class="field" style="margin-bottom:10px;"><label>${LANG==='ar'?'رقم الهاتف':'Phone number'}</label><input type="tel" id="regPhone" value="${esc(state.formTemp.regPhone||'')}" autocomplete="tel"></div>
-  <div class="field" style="margin-bottom:10px;"><label>${LANG==='ar'?'البريد الإلكتروني':'Email address'}</label><input type="email" id="regEmail" value="${esc(state.formTemp.regEmail||'')}" autocomplete="email"></div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.profilePic))}</label>
-    <div style="display:flex; align-items:center; gap:10px;">
-      <div id="regPicPreview" style="width:50px; height:50px; border-radius:50%; background:#eee; overflow:hidden; border:1px solid var(--border); display:flex; align-items:center; justify-content:center;">
-        ${state.regTempPic ? `<img src="${state.regTempPic}" style="width:100%;height:100%;object-fit:cover;">` : '👤'}
-      </div>
-      <label class="file-btn"><input type="file" accept="image/*" data-action="auth-upload-pic">📷 ${esc(t(STR.uploadPhoto))}</label>
-    </div>
-  </div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.choosePassword))}</label><input type="password" id="regPass" value="${esc(state.formTemp.regPass||'')}"></div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="regPass2" value="${esc(state.formTemp.regPass2||'')}"></div>
-  <button class="btn btn-outline btn-block" style="margin-bottom:6px;" data-action="auth-register-biometric">${bio? esc(t(STR.biometricEnabled)) : esc(t(STR.enableBiometric))}</button>
-  <button class="btn btn-primary btn-block" style="margin-top:8px;" data-action="auth-submit-register">${esc(t(STR.createAccount))}</button>
-  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
-}
-
-function renderAdminSetupScreen(){
-  return `
-  <div class="auth-title">🛡️ ${esc(t(STR.adminSetupTitle))}</div>
-  <div class="auth-sub">${esc(t(STR.adminSetupSub))}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminPass" value="${esc(state.formTemp.adminPass||'')}"></div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="adminPass2" value="${esc(state.formTemp.adminPass2||'')}"></div>
-  <button class="btn btn-primary btn-block" style="margin-top:8px;" data-action="auth-submit-adminsetup">${esc(t(STR.saveAndEnter))}</button>
-  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
-}
-
-function renderAdminLoginScreen(){
-  return `
-  <div class="auth-title">🛡️ ${esc(t(STR.adminLoginTitle))}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminLoginPass" value="${esc(state.formTemp.adminLoginPass||'')}"></div>
-  <button class="btn btn-primary btn-block" data-action="auth-submit-adminlogin">${esc(t(STR.unlockBtn))}</button>
-  <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
-}
-
-function renderLockScreen(){
-  const targetId = state.auth.targetUserId;
-  const isAdminTarget = targetId==='__admin__';
-  const user = isAdminTarget ? {name:t(STR.roleAdmin), biometricCredId: META_CACHE.adminBiometricCredId} : getUsers().find(u=>u.id===targetId);
-  if(!user) return renderWelcomeScreen();
-  return `
-  <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR}></div>
-  <div class="auth-title">${esc(t(STR.lockWelcomeBack))}</div>
-  <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
-  <div class="auth-sub">${esc(user.name)}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.enterPassword))}</label><input type="password" id="lockPass" value="${esc(state.formTemp.lockPass||'')}"></div>
-  <button class="btn btn-primary btn-block" data-action="auth-unlock-password">${esc(t(STR.unlockBtn))}</button>
-  ${user.biometricCredId? `<button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="auth-unlock-biometric">${esc(t(STR.unlockBiometricBtn))}</button>`:''}
-  ${!isAdminTarget? `<div style="text-align:center;margin-top:12px;"><button class="link-btn" data-action="auth-request-reset">${esc(t(STR.forgotPassword))}</button></div>`:''}
-  <div style="text-align:center;margin-top:10px;"><button class="link-btn" data-action="auth-switch">${esc(t(STR.switchAccount))}</button></div>`;
-}
-
-function showAccountModal(){
   const user = getCurrentUser();
-  const overlay = document.createElement('div'); overlay.className='modal-overlay';
-  overlay.innerHTML = `<div class="modal-box">
-    <h3>👤 ${esc(t(STR.accessLog))}</h3>
-    <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
-      <div style="width:80px; height:80px; border-radius:50%; background:#eee; overflow:hidden; border:2px solid var(--accent); margin-bottom:10px; display:flex; align-items:center; justify-content:center; font-size:32px;">
-        ${user && user.profilePic ? `<img src="${user.profilePic}" style="width:100%;height:100%;object-fit:cover;">` : '👤'}
-      </div>
-      <label class="file-btn" style="font-size:12px; padding:6px 12px;"><input type="file" accept="image/*" data-action="auth-update-profile-pic">📷 ${esc(t(STR.changePic))}</label>
+  const totalRecords = sections.reduce((sum,s)=>sum+getRecords(s.id).length,0);
+  const currentPrefix = todayISO().slice(0,7);
+  const monthRecords = sections.reduce((sum,s)=>sum+getRecords(s.id).filter(r=>(r.date||'').startsWith(currentPrefix)).length,0);
+  const recent = sections.flatMap(s=>getRecords(s.id).map(r=>({section:s,record:r}))).sort((a,b)=>`${b.record.date||''}${b.record._created||''}`.localeCompare(`${a.record.date||''}${a.record._created||''}`)).slice(0,5);
+  const WORKSPACE_IMAGES = {containers:'/manus-storage/sudan-port-containers_0b9d3e59.jpg',trucks:'/manus-storage/sudan-truck-loading_1eb60934.jpg',rebacking:'/manus-storage/sudan-product-processing_725a65bd.jpg'};
+  const sectionCards = sections.map(s=>{
+    const count=getRecords(s.id).length;
+    const caption=s.id==='containers'?(LANG==='ar'?'متابعة البوالص وحالة التوزيع':'Bills of lading and dispatch readiness'):s.id==='trucks'?(LANG==='ar'?'فحص المركبات والمنتجات المحمّلة':'Vehicle and loaded-product inspection'):(LANG==='ar'?'تسجيل المعالجة والكميات والتالف':'Processing, quantities, and damage');
+    const visual = WORKSPACE_IMAGES[s.id];
+    return `<article class="section-overview-card${visual?' section-overview-card--visual':''}">${visual?`<div class="section-card-photo" style="background-image:url('${visual}')"></div>`:''}<div class="section-card-overlay"><div class="section-overview-top"><div class="section-overview-icon">${SECTION_ICONS[s.id]||s.icon}</div><div class="section-overview-count">${count}<span>${LANG==='ar'?'سجل':'records'}</span></div></div><h4>${esc(t(s.name))}</h4><div class="caption">${caption}</div><div class="section-overview-actions"><button class="btn btn-quiet btn-sm" data-action="nav" data-view="list" data-section="${s.id}">${LANG==='ar'?'فتح السجل':'Open register'}</button><button class="btn btn-primary btn-sm" data-action="new-record" data-section="${s.id}">${LANG==='ar'?'سجل جديد':'New'}</button></div></div></article>`;
+  }).join('');
+  const recentRows = recent.map(item=>{
+    const title=item.section.id==='containers'?item.record.blNumber:item.section.id==='trucks'?item.record.truckNo:(item.record.blNumber||item.record.product);
+    return `<div class="activity-row"><div><div class="activity-title">${esc(title||t(item.section.name))}</div><div class="activity-meta">${esc(t(item.section.name))}</div></div><div class="activity-date">${esc(item.record.date||'—')}</div></div>`;
+  }).join('');
+  return `<div class="home-shell"><section class="home-hero"><div><div class="home-hero-kicker">${LANG==='ar'?'مساحة العمليات':'OPERATIONS WORKSPACE'}</div><h2>${LANG==='ar'?'مرحبًا'+(user?'، '+esc(user.name):''):'Welcome'+(user?', '+esc(user.name):'')}</h2><p>${LANG==='ar'?'سجّل عمليات الجودة، راقب الفحوصات، وراجع النتائج من مساحة عمل واحدة.':'Record quality operations, monitor inspections, and review results from one workspace.'}</p></div><button class="btn btn-primary" data-action="nav" data-view="dashboard">${LANG==='ar'?'فتح لوحة التحليلات':'Open analytics'}</button></section><section class="home-kpis"><div class="home-kpi"><span class="value">${totalRecords}</span><span class="label">${LANG==='ar'?'إجمالي سجلات العمليات':'Total operation records'}</span></div><div class="home-kpi"><span class="value">${monthRecords}</span><span class="label">${LANG==='ar'?'سجلات هذا الشهر':'Records this month'}</span></div><div class="home-kpi"><span class="value">${sections.length}</span><span class="label">${LANG==='ar'?'مساحات العمل النشطة':'Active workspaces'}</span></div></section><section><div class="home-section-head"><div><h3>${LANG==='ar'?'مساحات العمل':'Workspaces'}</h3><p>${LANG==='ar'?'اختر السجل أو ابدأ عملية جديدة.':'Open a register or start a new operation.'}</p></div></div><div class="section-overview-grid">${sectionCards}</div></section><section class="home-activity"><div class="home-activity-head">${LANG==='ar'?'آخر النشاط':'Recent activity'}</div>${recentRows||`<div class="empty-state">${LANG==='ar'?'لا توجد عمليات مسجلة حتى الآن':'No operations have been recorded yet'}</div>`}</section></div>`;
+}
+
+/* ---- Dashboard / Analytics ---- */
+function computeContainerAgg(records){
+  // Only compute analytics based on "completed" records as per user request
+  const completedRecords = records.filter(r => r.workStatus === 'completed');
+  
+  let totalNC=0, totalTreated=0, totalBillQty=0, totalContainers=0, totalLoss=0, totalReback=0;
+  const conditionTally={};
+  const ncTypeTally={from_container:0, handling:0, other:0};
+  
+  completedRecords.forEach(r=>{
+    totalNC += parseFloat(r.totalNC)||0;
+    totalTreated += parseFloat(r.ncTreated)||0;
+    totalBillQty += parseFloat(r.billQty)||0;
+    totalContainers += parseContainerCount(r);
+    totalLoss += parseFloat(r.totalLoss)||0;
+    totalReback += parseFloat(r.totalReback)||0;
+    if(r.ncType) ncTypeTally[r.ncType] = (ncTypeTally[r.ncType]||0) + 1;
+    (r.containerDetails||[]).forEach(cd=>{ if(cd.condition){ const normalized=['damaged','repair'].includes(cd.condition)?'bad':cd.condition; conditionTally[normalized]=(conditionTally[normalized]||0)+1; } });
+  });
+  
+  return {totalNC,totalTreated,totalBillQty,totalContainers,totalLoss,totalReback,conditionTally,ncTypeTally,count:completedRecords.length, allCount: records.length};
+}
+function computeTruckAgg(records){
+  // Only compute analytics based on "completed" records as per user request
+  const completedRecords = records.filter(r => r.workStatus === 'completed');
+  const total = completedRecords.length;
+  const accepted = completedRecords.filter(r=>r.inspectionResult==='accepted').length;
+  const rejected = completedRecords.filter(r=>r.inspectionResult==='rejected').length;
+  return {total, accepted, rejected, allCount: records.length};
+}
+function lastMonths(n){
+  const arr=[]; const now = new Date();
+  for(let i=n-1;i>=0;i--){ const d=new Date(now.getFullYear(), now.getMonth()-i, 1); arr.push({year:d.getFullYear(), month:d.getMonth()+1, key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}); }
+  return arr;
+}
+function trendData(metricKey, months){
+  const monthsArr = lastMonths(months);
+  const allContainers = getRecords('containers');
+  return monthsArr.map(m=>{
+    const recs = allContainers.filter(r=>r.date && r.date.startsWith(m.key));
+    const sum = recs.reduce((a,r)=>a+(parseFloat(r[metricKey])||0),0);
+    return {label:`${m.month}/${String(m.year).slice(2)}`, value:Math.round(sum*100)/100};
+  });
+}
+function renderBarChart(items, color){
+  const max = Math.max(1, ...items.map(i=>i.value));
+  const bars = items.map(i=>{
+    const h = Math.max(2, Math.round((i.value/max)*100));
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
+      <div style="font-size:11px;font-weight:700;color:var(--navy2);margin-bottom:4px;">${i.value}</div>
+      <div style="width:70%;background:${color};border-radius:6px 6px 0 0;height:${h}px;max-height:110px;transition:height .3s;"></div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;text-align:center;">${esc(i.label)}</div>
+    </div>`;
+  }).join('');
+  return `<div style="display:flex;align-items:flex-end;height:150px;gap:6px;padding:6px 2px 0;">${bars}</div>`;
+}
+function renderDonut(parts){
+  const total = parts.reduce((a,p)=>a+p.value,0);
+  let acc=0;
+  const stops = total>0 ? parts.map(p=>{
+    const start = acc/total*100; acc+=p.value; const end=acc/total*100;
+    return `${p.color} ${start}% ${end}%`;
+  }).join(', ') : '#E3E9F1 0% 100%';
+  const legend = parts.map(p=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:5px;"><span style="width:10px;height:10px;border-radius:3px;background:${p.color};display:inline-block;flex-shrink:0;"></span>${esc(p.label)}: <b>${p.value}</b>${total?` (${Math.round(p.value/total*100)}%)`:''}</div>`).join('');
+  return `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div style="width:96px;height:96px;border-radius:50%;background:conic-gradient(${stops});flex-shrink:0;position:relative;">
+      <div style="position:absolute;inset:17px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--navy);">${total}</div>
     </div>
-    <div class="record-card"><div class="main">${esc(t(STR.loggedInAs))}: ${esc(user?user.name:'')}</div><div class="meta">${esc(user?(user.role||''):'')}</div><div class="meta">${LANG==='ar'?'رقم الهاتف':'Phone'}: ${esc(user?(user.phone||'—'):'—')}</div><div class="meta">${LANG==='ar'?'البريد الإلكتروني':'Email'}: ${esc(user?(user.email||'—'):'—')}</div></div>
-    <div class="field" style="margin-top:12px;"><label>${LANG==='ar'?'اسم المستخدم':'Username'}</label><input type="text" id="profileName" value="${esc(user?user.name:'')}"></div>
-    <div class="field"><label>${LANG==='ar'?'رقم الهاتف':'Phone number'}</label><input type="tel" id="profilePhone" value="${esc(user?(user.phone||''):'')}" autocomplete="tel"></div>
-    <div class="field"><label>${LANG==='ar'?'البريد الإلكتروني':'Email address'}</label><input type="email" id="profileEmail" value="${esc(user?(user.email||''):'')}" autocomplete="email"></div>
-    <button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="auth-save-profile">${LANG==='ar'?'حفظ الملف الشخصي':'Save profile'}</button>
-    <button class="btn btn-danger btn-block" style="margin-top:10px;" data-action="auth-logout">${esc(t(STR.logout))}</button>
-    <button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="close-modal">${esc(t(STR.cancel))}</button>
+    <div>${legend}</div>
   </div>`;
-  document.body.appendChild(overlay);
+}
+function renderChat() {
+  const user = getCurrentUser();
+  const messages = CHAT_CACHE.list;
+  
+  setTimeout(() => {
+    const el = document.querySelector('.chat-messages');
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 100);
+
+  const msgsHtml = messages.map(m => {
+    const isMe = m.userId === user.id;
+    const u = USERS_CACHE.list.find(u => u.id === m.userId);
+    const pic = u && u.profilePic ? `<img src="${u.profilePic}" class="profile-pic-chat">` : '';
+    return `
+      <div class="chat-msg ${isMe ? 'me' : 'other'}">
+        <span class="user">${pic}${esc(m.userName)}</span>
+        <div class="text">${esc(m.text)}</div>
+        <span class="time">${new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="section-title"><h2>💬 ${esc(t(STR.chat))}</h2></div>
+    <div class="chat-container">
+      <div class="chat-messages">${msgsHtml}</div>
+      <div class="chat-input-area">
+        <input type="text" class="chat-input" placeholder="${esc(t(STR.chatPlaceholder))}" id="chatInput">
+        <button class="chat-send-btn" data-action="send-chat">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
 }
 
-function showResetPasswordModal(userId, reqId, name){
-  const overlay = document.createElement('div'); overlay.className='modal-overlay';
-  overlay.innerHTML = `<div class="modal-box">
-    <h3>🔓 ${esc(t(STR.setNewPasswordTitle))} ${esc(name)}</h3>
-    <div class="field"><input type="text" id="newPassForUser" placeholder="${esc(t(STR.setNewPasswordPlaceholder))}"></div>
-    <button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="confirm-reset-password" data-userid="${userId}" data-reqid="${reqId}">${esc(t(STR.resetPasswordAction))}</button>
-    <button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="close-modal">${esc(t(STR.cancel))}</button>
-  </div>`;
-  document.body.appendChild(overlay);
+function uniqueNonEmpty(records,key){ return new Set(records.map(r=>String(r[key]||'').trim()).filter(Boolean)).size; }
+function sumField(records,key){ return records.reduce((sum,r)=>sum+(parseFloat(r[key])||0),0); }
+function formatKpiValue(value, suffix=''){ return value==null || Number.isNaN(value) ? '—' : `${typeof value==='number' && !Number.isInteger(value) ? value.toFixed(1) : value}${suffix}`; }
+function renderSectionKpiPanel(title, subtitle, kpis, note, chart){
+  const cards = kpis.map(k=>`<div class="kpi-card ${k.tone||'neutral'}"><div class="kpi-val">${formatKpiValue(k.value,k.suffix||'')}</div><div class="kpi-lbl">${esc(k.label)}</div></div>`).join('');
+  return `<section class="card analytics-section"><div class="section-title"><div><h3 style="margin:0;">${esc(title)}</h3><div class="hint">${esc(subtitle)}</div></div></div><div class="kpi-grid">${cards}</div>${chart||''}<div class="analytics-note">${esc(note)}</div></section>`;
+}
+function renderDashboard(){
+  const period = state.dashboardPeriod;
+  const prefix = period==='month' ? `${state.monthly.year}-${String(state.monthly.month).padStart(2,'0')}` : '';
+  const byPeriod = records => period==='month' ? records.filter(r=>String(r.date||'').startsWith(prefix)) : records;
+  const containers = byPeriod(getRecords('containers'));
+  const trucks = byPeriod(getRecords('trucks'));
+  const rebacking = byPeriod(getRecords('rebacking'));
+  const cAgg = computeContainerAgg(containers);
+  const tAgg = computeTruckAgg(trucks);
+  const resolvedRate = pct(cAgg.totalTreated,cAgg.totalNC);
+  const lossRate = pct(cAgg.totalLoss,cAgg.totalBillQty);
+  const acceptRate = pct(tAgg.accepted,tAgg.total);
+  const processedQty = sumField(rebacking,'processedQty');
+  const ncQty = sumField(rebacking,'mergeQty');
+  const damagedQty = sumField(rebacking,'damagedQty');
+  const processedRate = pct(processedQty,ncQty);
+  const rebackLossRate = pct(damagedQty,ncQty);
+  const ncTypeParts = [
+    {label:'From Container', value:cAgg.ncTypeTally.from_container, color:'var(--accent)'},
+    {label:'During Handling', value:cAgg.ncTypeTally.handling, color:'var(--gold)'},
+    {label:LANG==='ar'?'أخرى':'Other', value:cAgg.ncTypeTally.other, color:'var(--teal)'}
+  ].filter(p=>p.value>0);
+  const transportTally = {};
+  containers.forEach(r=>{ const k=r.transportMethod||'unknown'; transportTally[k]=(transportTally[k]||0)+1; });
+  const transportLabels = {air:{ar:'عبر المطار',en:'By Air'},sea:{ar:'عبر الميناء',en:'By Sea/Port'},road:{ar:'عبر الطريق',en:'By Road'},unknown:{ar:'غير محدد',en:'Not specified'}};
+  const transportParts = Object.keys(transportTally).map(k=>({label:t(transportLabels[k]||{ar:k,en:k}),value:transportTally[k],color:k==='air'?'var(--accent)':k==='road'?'var(--gold)':'var(--teal)'}));
+  const truckParts = [{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,color:'var(--success)'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,color:'var(--danger)'}];
+  const rebackParts = [{label:LANG==='ar'?'معالجة':'Processed',value:processedQty,color:'var(--success)'},{label:LANG==='ar'?'تالفة':'Damaged',value:damagedQty,color:'var(--danger)'}];
+  const years=[]; const curY=new Date().getFullYear(); for(let y=curY-2;y<=curY+1;y++) years.push(y);
+  const monthOptions=Array.from({length:12},(_,i)=>i+1);
+  const periodControls=`<div class="period-toggle"><button class="btn btn-sm ${period==='all'?'btn-primary active':'btn-outline'}" data-action="dashboard-period" data-value="all">${LANG==='ar'?'كل الفترة':'All time'}</button><button class="btn btn-sm ${period==='month'?'btn-primary active':'btn-outline'}" data-action="dashboard-period" data-value="month">${LANG==='ar'?'شهر محدد':'Specific month'}</button>${period==='month'?`<select data-action="monthly-month">${monthOptions.map(m=>`<option value="${m}" ${m==state.monthly.month?'selected':''}>${m}</option>`).join('')}</select><select data-action="monthly-year">${years.map(y=>`<option value="${y}" ${y==state.monthly.year?'selected':''}>${y}</option>`).join('')}</select>`:''}</div>`;
+  return `<div class="card"><div class="section-title"><div><h2>📊 ${esc(t(STR.dashboard))}</h2><div class="hint">${LANG==='ar'?'تحليل مستقل لكل مساحة عمل باستخدام سجلاتها الفعلية':'Independent analytics for every workspace using its own records'}</div></div></div>${periodControls}</div>
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل الشحنات':'Shipment Analytics',LANG==='ar'?'صورة تشغيلية للشحنات وطرق النقل ومستوى المطابقة':'Operational view of shipments, transport methods, and conformity',[{label:LANG==='ar'?'البوالص المسجلة':'Bills Logged',value:cAgg.allCount},{label:LANG==='ar'?'إجمالي الحاويات':'Total Containers',value:cAgg.totalContainers},{label:LANG==='ar'?'إجمالي الكميات':'Total Bill Quantity',value:cAgg.totalBillQty},{label:'Total NC',value:cAgg.totalNC,tone:cAgg.totalNC?'warn':'good'},{label:LANG==='ar'?'معدل معالجة NC':'NC Resolved Rate',value:resolvedRate,suffix:'%',tone:resolvedRate==null?'neutral':resolvedRate>=80?'good':resolvedRate>=50?'warn':'bad'},{label:LANG==='ar'?'الفاقد من الكمية':'Loss % of Bill Qty',value:lossRate,suffix:'%',tone:lossRate==null?'neutral':lossRate<=2?'good':'warn'}],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:'')}
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.allCount},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:uniqueNonEmpty(trucks,'transporter')}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div>`)}
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rebacking.length},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'},{label:LANG==='ar'?'نسبة الفاقد':'Loss Rate',value:rebackLossRate,suffix:'%',tone:rebackLossRate<=2?'good':'warn'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>${ncTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC':'NC Types'}</h4>${renderDonut(ncTypeParts)}</div>`:''}</div>`)}
+  <div class="card chart-card"><div class="section-title"><h3 style="margin:0;">${LANG==='ar'?'الاتجاه العام للفاقد وNC':'Overall NC & Loss Trend'}</h3></div>${renderBarChart(trendData('totalNC',state.dashboardTrendMonths||6),'var(--accent)')}</div>`;
 }
 
-/* ===================== Event handling ===================== */
-document.addEventListener('input', e=>{
-  const el = e.target;
-  if(el.id){ state.formTemp[el.id] = el.value; }
-  const path = el.getAttribute('data-field');
-  if(path && state.currentRecord){
-    setPath(state.currentRecord, path, el.value);
-    const section = getSection(state.viewSectionId);
-    if(section) updateComputedDisplays(section);
-    scheduleDraftSave(state.viewSectionId);
+/* ---- Operations workspace helpers ---- */
+function filterDefaults(sectionId){
+  if(sectionId==='containers') return {blNumber:''};
+  if(sectionId==='trucks') return {truckNo:'',product:''};
+  if(sectionId==='rebacking') return {product:'',month:''};
+  return {query:''};
+}
+function getSectionFilters(sectionId){
+  if(!state.sectionFilters[sectionId]) state.sectionFilters[sectionId] = filterDefaults(sectionId);
+  return state.sectionFilters[sectionId];
+}
+function setSectionFilter(sectionId, key, value){ getSectionFilters(sectionId)[key] = value; }
+function clearSectionFilters(sectionId){ state.sectionFilters[sectionId] = filterDefaults(sectionId); }
+function normalizedText(value){ return String(value==null?'':value).trim().toLowerCase(); }
+function hasActiveSectionFilters(sectionId){ return Object.values(getSectionFilters(sectionId)).some(value=>String(value||'').trim()!==''); }
+function productSearchText(record){
+  const products = [];
+  if(record.product) products.push(record.product);
+  if(record.productDesc) products.push(record.productDesc);
+  asArray(record.products).forEach(item=> products.push(item.product));
+  asArray(record.productDetails).forEach(item=> products.push(item.product));
+  return normalizedText(products.filter(Boolean).join(' '));
+}
+function selectLabel(section, key, value){
+  const field = section.fields.find(f=>f.key===key);
+  const option = field && (field.options||[]).find(o=>o.value===value);
+  return option ? t(option.label) : (value||'');
+}
+function recordMatchesSectionFilters(sectionId, record){
+  const filters = getSectionFilters(sectionId);
+  if(sectionId==='containers'){
+    if(filters.blNumber && !normalizedText(record.blNumber).includes(normalizedText(filters.blNumber))) return false;
+    return true;
   }
-  const filterSection = el.getAttribute('data-section-filter');
-  if(filterSection){
-    setSectionFilter(filterSection, el.getAttribute('data-filter-key'), el.value);
-    refreshSectionFilterPreview(filterSection);
-    return;
+  if(sectionId==='trucks'){
+    if(filters.truckNo && !normalizedText(record.truckNo).includes(normalizedText(filters.truckNo))) return false;
+    if(filters.product && !productSearchText(record).includes(normalizedText(filters.product))) return false;
+    return true;
   }
-  const bf = el.getAttribute('data-builder-field');
-  if(bf){
-    const idx = parseInt(el.getAttribute('data-index'),10);
-    if(bf==='labelAr') state.builderFields[idx].labelAr = el.value;
-    if(bf==='labelEn') state.builderFields[idx].labelEn = el.value;
-    if(bf==='options') state.builderFields[idx].optionsCsv = el.value;
+  if(sectionId==='rebacking'){
+    if(filters.product && !productSearchText(record).includes(normalizedText(filters.product))) return false;
+    if(filters.month && (!record.date || !record.date.startsWith(filters.month))) return false;
+    return true;
   }
-  if(el.getAttribute('data-action')==='filter-search'){ state.search = el.value; render(); }
-});
+  if(filters.query && !normalizedText(JSON.stringify(record)).includes(normalizedText(filters.query))) return false;
+  return true;
+}
+function getFilteredRecords(sectionId){
+  return getRecords(sectionId).filter(record=>recordMatchesSectionFilters(sectionId, record)).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b._created||'').localeCompare(a._created||''));
+}
+function statusMeta(section, record){
+  const key = section.id==='containers' ? 'readyForDispatch' : section.id==='trucks' ? 'inspectionResult' : '';
+  const value = key ? record[key] : '';
+  const label = key ? selectLabel(section, key, value) : '';
+  const tone = ['yes','accepted'].includes(value) ? 'good' : ['no','rejected'].includes(value) ? 'bad' : value ? 'warn' : 'neutral';
+  return {label:label || (LANG==='ar'?'غير محدد':'Not set'), tone};
+}
+function filteredRecordsMarkup(section, records){
+  return records.length ? renderRecordTable(section,records) : `<div class="empty-state"><div class="ico">—</div>${LANG==='ar'?'لا توجد سجلات مطابقة للبحث الحالي':'No records match the current search'}</div>`;
+}
+function refreshSectionFilterPreview(sectionId){
+  const section = getSection(sectionId); if(!section) return;
+  const records = getFilteredRecords(sectionId); const active = hasActiveSectionFilters(sectionId);
+  const metric = document.querySelector(`[data-filter-metric="${sectionId}"]`);
+  if(metric){ metric.style.display = active ? '' : 'none'; const value=metric.querySelector('[data-filter-count]'); if(value) value.textContent=records.length; }
+  const panelTitle = document.querySelector(`[data-record-panel-title="${sectionId}"]`);
+  if(panelTitle) panelTitle.textContent = active ? (LANG==='ar'?'نتائج الفلترة':'Filtered records') : (LANG==='ar'?'سجل العمليات':'Operations register');
+  const display = document.querySelector(`[data-records-display="${sectionId}"]`);
+  if(display) display.innerHTML = filteredRecordsMarkup(section,records);
+  const resultCount = document.querySelector(`[data-filter-result-count="${sectionId}"]`);
+  if(resultCount){
+    resultCount.textContent = records.length;
+    if(resultCount.parentElement) resultCount.parentElement.style.display = active ? '' : 'none';
+  }
+}
 
-document.addEventListener('change', e=>{
-  const el = e.target;
-  if(el.id){ state.formTemp[el.id] = el.value; }
-  const path = el.getAttribute('data-field');
-  if(path && el.tagName==='SELECT' && state.currentRecord){
-    setPath(state.currentRecord, path, el.value);
-    const section = getSection(state.viewSectionId);
-    if(section) updateComputedDisplays(section);
-    scheduleDraftSave(state.viewSectionId);
+/* ---- Professional operations workspace / List view ---- */
+function renderRecordActions(sectionId, recordId){
+  return `<div class="record-actions"><button class="btn btn-primary btn-sm" data-action="view-record" data-section="${sectionId}" data-id="${recordId}">${LANG==='ar'?'عرض':'View'}</button><button class="btn btn-quiet btn-sm" data-action="share-record-pdf" data-section="${sectionId}" data-id="${recordId}">PDF</button><button class="btn btn-quiet btn-sm" data-action="edit-record" data-section="${sectionId}" data-id="${recordId}">${LANG==='ar'?'تعديل':'Edit'}</button><button class="btn btn-danger btn-sm" data-action="delete-record" data-section="${sectionId}" data-id="${recordId}" title="${esc(t(STR.delete))}">×</button></div>`;
+}
+function detailValue(label, value, isHtml = false){
+  const shown = value === 0 ? '0' : (value == null || value === '' ? '—' : String(value));
+  return `<div class="detail-item"><span class="detail-label">${esc(label)}</span><strong class="detail-value">${isHtml ? shown : esc(shown)}</strong></div>`;
+}
+function renderDetailField(section, field, value){
+  if(value == null || value === '' || (Array.isArray(value) && value.length===0)) return '';
+  const label = t(field.label);
+  if(field.type==='group'){
+    const items = asArray(value).map((item, i)=>`<div class="detail-subcard"><div class="detail-subtitle">${LANG==='ar'?'البند':'Item'} ${i+1}</div>${field.fields.map(sf=>detailValue(t(sf.label), item[sf.key])).join('')}</div>`).join('');
+    return items ? `<section class="detail-section"><h3>${esc(label)}</h3><div class="detail-subgrid">${items}</div></section>` : '';
   }
-  const filterSection = el.getAttribute('data-section-filter');
-  if(filterSection){
-    setSectionFilter(filterSection, el.getAttribute('data-filter-key'), el.value);
-    refreshSectionFilterPreview(filterSection);
-    return;
+  if(field.type==='multiDate'){
+    const dates = asArray(value).map((item,i)=>`<div class="detail-subcard"><div class="detail-subtitle">${LANG==='ar'?'دفعة':'Batch'} ${i+1}</div>${detailValue(LANG==='ar'?'تاريخ الإنتاج':'Production date', item.prod)}${detailValue(LANG==='ar'?'تاريخ الانتهاء':'Expiry date', item.exp)}</div>`).join('');
+    return dates ? `<section class="detail-section"><h3>${esc(label)}</h3><div class="detail-subgrid">${dates}</div></section>` : '';
   }
-  const bf = el.getAttribute('data-builder-field');
-  if(bf==='type'){ const idx = parseInt(el.getAttribute('data-index'),10); state.builderFields[idx].type = el.value; render(); }
+  if(field.type==='image'){
+    const imgs = asArray(value).filter(Boolean).map(src=>`<a href="${esc(src)}" target="_blank" class="detail-image-link"><img class="detail-image" src="${esc(src)}" alt="${esc(label)}"></a>`).join('');
+    return imgs ? `<section class="detail-section"><h3>${esc(label)}</h3><div class="detail-images">${imgs}</div></section>` : '';
+  }
+  return `<section class="detail-section"><div class="detail-grid">${detailValue(label, field.type==='select' ? (selectLabel(section,field.key,value)||value) : value)}</div></section>`;
+}
+function renderRecordDetail(sectionId, record){
+  const section = getSection(sectionId);
+  if(!section || !record) return `<div class="empty-state">${LANG==='ar'?'تعذر العثور على السجل':'Record not found'}</div>`;
+  const identity = sectionId==='containers' ? record.blNumber : sectionId==='trucks' ? record.truckNo : (record.product || record.blNumber);
+  const fields = section.fields.map(field=>renderDetailField(section, field, record[field.key])).join('');
+  return `<div class="detail-workspace"><div class="detail-header"><div><div class="form-workspace-kicker">${esc(t(section.name))}</div><h1>${esc(identity||t(section.name))}</h1><p>${LANG==='ar'?'عرض كامل لتفاصيل العملية وسجلها التشغيلي':'Complete operational record details'}</p></div><button class="btn" data-action="back-to-list" data-section="${sectionId}">${LANG==='ar'?'العودة إلى السجل':'Back to register'}</button></div><div class="detail-summary">${detailValue(LANG==='ar'?'التاريخ':'Date',record.date)}${detailValue(LANG==='ar'?'آخر تحديث':'Last updated',record._updated||record._created)}</div>${fields}<div class="detail-footer"><button class="btn btn-quiet" data-action="edit-record" data-section="${sectionId}" data-id="${record.id}">${LANG==='ar'?'تعديل العملية':'Edit record'}</button><button class="btn btn-primary" data-action="share-record-pdf" data-section="${sectionId}" data-id="${record.id}">PDF</button></div></div>`;
+}
+function renderRecordTable(section, records){
+  const isShipment = section.id==='containers';
+  const isTruck = section.id==='trucks';
+  const isRebacking = section.id==='rebacking';
 
-  if(el.getAttribute('data-action')==='auth-upload-pic'){
-    const file = el.files[0];
-    if(!file) return;
-    showToast(t(STR.addingPhotos));
-    uploadProfilePicture(file).then(url => {
-      state.regTempPic = url;
-      render();
-      showToast(t(STR.photosAdded));
-    }).catch(() => showToast(t(STR.profilePhotoInvalid)));
-    return;
-  }
-  if(el.getAttribute('data-action')==='add-image'){
-    const path = el.getAttribute('data-field');
-    const files = Array.from(el.files||[]);
-    if(!files.length) return;
-    
-    const recordRef = state.currentRecord;
-    const sectionIdRef = state.viewSectionId;
-    let remaining = files.length;
-    let successCount = 0;
-    
-    showToast(t(STR.addingPhotos));
-    
-    files.forEach((file, fileIdx) => {
-      if(file.size > 50 * 1024 * 1024) {
-        console.warn(`File ${fileIdx} too large: ${file.size} bytes`);
-        remaining--;
-        if(remaining === 0) { render(); showToast(t(STR.photosAdded)); }
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const compressed = await compressImageDataUrl(reader.result, 1600, 0.82);
-          if(!compressed) throw new Error('Compression failed');
-          
-          const tempId = uid();
-          await saveImage(tempId, compressed);
-          
-          const arr = getPath(recordRef, path) || [];
-          arr.push(tempId);
-          setPath(recordRef, path, arr);
-          successCount++;
-          scheduleDraftSave(sectionIdRef);
-          
-          remaining--;
-          if(remaining === 0) { 
-            render(); 
-            showToast(successCount === files.length ? t(STR.photosAdded) : `${successCount}/${files.length} ${t(STR.photosAdded)}`);
-          }
+  let headings = [];
+  if(isShipment) headings = LANG==='ar' ? ['التاريخ', 'رقم البوليصة', 'المنتج', 'الناقل', 'الحالة', 'إجراءات'] : ['Date', 'BL Number', 'Product', 'Carrier', 'Status', 'Actions'];
+  else if(isTruck) headings = LANG==='ar' ? ['التاريخ', 'رقم العربة', 'المنتج', 'الوجهة', 'الحالة', 'إجراءات'] : ['Date', 'Truck No', 'Product', 'Destination', 'Status', 'Actions'];
+  else if(isRebacking) headings = LANG==='ar' ? ['التاريخ', 'المنتج', 'إجراءات'] : ['Date', 'Product', 'Actions'];
+  else headings = LANG==='ar' ? ['التاريخ', 'المعلومات', 'إجراءات'] : ['Date', 'Info', 'Actions'];
 
-          /* رفع في الخلفية لخدمة ImgBB عشان الصورة تظهر لكل الأفراد */
-          (async () => {
-            try {
-              const url = await uploadToImgBB(compressed);
-              if(!url) {
-                console.warn(`Failed to upload image ${fileIdx} to ImgBB`);
-                return;
-              }
-              const arr2 = getPath(recordRef, path) || [];
-              const idx = arr2.indexOf(tempId);
-              if(idx === -1) return;
-              arr2[idx] = url;
-              setPath(recordRef, path, arr2);
-              scheduleDraftSave(sectionIdRef);
-              const imgEl = document.querySelector(`img[data-imgid="${tempId}"]`);
-              if(imgEl) { 
-                imgEl.src = url; 
-                imgEl.setAttribute('data-imgid', url); 
-              }
-              if(recordRef && recordRef.id) { 
-                await saveRecordRemote(sectionIdRef, recordRef).catch(err => console.warn('Save after upload failed:', err)); 
-              }
-            } catch(uploadErr) {
-              console.warn(`Upload error for image ${fileIdx}:`, uploadErr);
-            }
-          })();
-        } catch(err) {
-          console.error('add-image processing failed:', err);
-          showToast(t(STR.imageSaveFailed));
-          remaining--;
-          if(remaining === 0) render();
+  const rows = records.map(record=>{
+    const status = statusMeta(section, record);
+    const workStatus = record.workStatus || "working";
+    const workTone = workStatus==="completed"?"success":"warn";
+    const workLabel = workStatus==="completed"?(LANG==="ar"?"منتهية":"Completed"):(LANG==="ar"?"قيد العمل":"Working");
+    const rowClass = workStatus==="completed"?"row-completed":"row-working";
+    
+    if(isShipment) return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(record.blNumber||"—")}</div><div class="record-secondary">${record.containerCount?`${record.containerCount} ${LANG==="ar"?"حاوية":"containers"}`:""}</div></td><td><div class="record-product">${esc(record.productDesc||"—")}</div><div class="record-secondary">${esc(record.countryOfOrigin||"")}</div></td><td>${esc(selectLabel(section,"transportMethod",record.transportMethod)||record.transportMethod||"—")}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span> <span class="status-badge badge-outline ${workTone}">${esc(workLabel)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+    if(isTruck) return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(record.truckNo||"—")}</div><div class="record-secondary">${esc(record.transporter||"")}</div></td><td><div class="record-product">${esc(productSearchText(record)||"—")}</div></td><td>${esc(record.destination||"—")}</td><td><span class="status-badge ${status.tone}">${esc(status.label)}</span> <span class="status-badge badge-outline ${workTone}">${esc(workLabel)}</span></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+    
+    const primary = (section.listFields || []).map(key=>record[key]).filter(Boolean).join(" · ");
+    return `<tr class="${rowClass}"><td>${esc(record.date||"—")}</td><td><div class="record-primary">${esc(primary||"—")}</div></td><td>${renderRecordActions(section.id,record.id)}</td></tr>`;
+  }).join("");
+  
+  return `<div class="records-table-wrap"><table class="records-table"><thead><tr>${headings.map(label=>`<th>${esc(label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function filterField(label, control){ return `<div class="filter-field"><label>${label}</label>${control}</div>`; }
+function renderSectionFilters(section){
+  const filters = getSectionFilters(section.id);
+  if(section.id==='containers') return `<div class="filter-grid">${filterField(LANG==='ar'?'رقم البوليصة':'BL number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم البوليصة':'Search BL number'}" value="${esc(filters.blNumber)}" data-section-filter="${section.id}" data-filter-key="blNumber">`)}</div>`;
+  if(section.id==='trucks') return `<div class="filter-grid">
+    ${filterField(LANG==='ar'?'رقم العربة':'Vehicle number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم العربة':'Search vehicle'}" value="${esc(filters.truckNo)}" data-section-filter="${section.id}" data-filter-key="truckNo">`)}
+    ${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}
+  </div>`;
+  if(section.id==='rebacking') return `<div class="filter-grid">${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}${filterField(LANG==='ar'?'الشهر':'Month',`<input type="text" inputmode="numeric" placeholder="YYYY-MM" value="${esc(filters.month)}" data-section-filter="${section.id}" data-filter-key="month">`)}</div>`;
+  return `<div class="filter-grid">${filterField(LANG==='ar'?'بحث داخل السجلات':'Search records',`<input type="text" autocomplete="off" placeholder="${esc(t(STR.search))}" value="${esc(filters.query)}" data-section-filter="${section.id}" data-filter-key="query">`)}</div>`;
+}
+function renderList(sectionId){
+  const section = getSection(sectionId); if(!section) return '';
+  const allRecords = getRecords(sectionId); const records = getFilteredRecords(sectionId); const filtersActive = hasActiveSectionFilters(sectionId);
+  const description = sectionId==='containers' ? (LANG==='ar'?'تابع الشحنات من مساحة عمل واحدة.':'Manage shipments from one workspace.') : sectionId==='trucks' ? (LANG==='ar'?'أدر فحوصات الشاحنات والمنتجات المحمّلة بوضوح وسرعة من سجل تشغيلي موحّد.':'Manage truck inspections and loaded products from one operational register.') : sectionId==='rebacking' ? (LANG==='ar'?'تابع عمليات معالجة المنتجات والكميات والفاقد من سجل تشغيلي منظم.':'Track product processing, quantities, and loss from an organized operational register.') : (LANG==='ar'?'استعرض السجلات ونظّم النتائج والتصدير من مكان واحد.':'Review records, organize results, and export from one place.');
+  return `<div class="operations-shell"><section class="workspace-header"><div><div class="workspace-kicker">${LANG==='ar'?'سجل العمليات':'OPERATIONS REGISTER'}</div><h1 class="workspace-title">${esc(t(section.name))}</h1><p class="workspace-description">${description}</p></div><button class="btn btn-primary" data-action="new-record" data-section="${sectionId}">${LANG==='ar'?'سجل عملية جديدة':'New record'}</button></section>
+    <section class="workspace-metrics"><div class="workspace-metric"><span class="value">${allRecords.length}</span><span class="label">${LANG==='ar'?'إجمالي السجلات':'Total records'}</span></div><div class="workspace-metric" data-filter-metric="${sectionId}" style="display:${filtersActive?'':'none'}"><span class="value" data-filter-count>${records.length}</span><span class="label">${LANG==='ar'?'نتائج الفلترة':'Filtered records'}</span></div></section>
+    <section class="filter-panel"><div class="filter-panel-head"><div><h2 class="filter-panel-title">${LANG==='ar'?'بحث':'Search'}</h2><div class="filter-panel-note">${LANG==='ar'?'التصدير يعكس النتائج الظاهرة فقط.':'Exports include visible results only.'}</div></div></div>${renderSectionFilters(section)}<div class="filter-footer"><div class="filter-results" style="display:${filtersActive?'':'none'}"><b data-filter-result-count="${sectionId}">${records.length}</b> ${LANG==='ar'?'سجل مطابق':'matching records'}</div><div class="filter-actions"><button class="btn btn-quiet btn-sm" data-action="clear-section-filters" data-section="${sectionId}">${LANG==='ar'?'مسح البحث':'Clear search'}</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-csv" data-section="${sectionId}">CSV</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-xlsx" data-section="${sectionId}">Excel</button><button class="btn btn-primary btn-sm" data-action="share-filtered-pdf" data-section="${sectionId}">PDF</button></div></div></section>
+    <section class="records-panel"><div class="records-panel-head"><div><div class="records-panel-title" data-record-panel-title="${sectionId}">${filtersActive?(LANG==='ar'?'نتائج الفلترة':'Filtered records'):(LANG==='ar'?'سجل العمليات':'Operations register')}</div><div class="records-panel-sub">${LANG==='ar'?'يدعم السجل عددًا كبيرًا من العمليات ويعرض الأحدث أولًا.':'The register supports a large number of operations and shows newest records first.'}</div></div></div><div data-records-display="${sectionId}">${filteredRecordsMarkup(section,records)}</div></section></div>`;
+}
+
+/* ---- Form view ---- */
+function renderForm(sectionId){
+  const section = getSection(sectionId);
+  if(!section) return '';
+  const record = state.currentRecord;
+  const fieldsHtml = section.fields.map(f=> renderField(f, record)).join('');
+  const draft = getFormDraft(sectionId);
+  const time = draft && draft.savedAt ? formatDraftTime(draft.savedAt) : '';
+  const draftMessage = `${t(STR.draftSaved)}${time ? ` · ${time}` : ''}`;
+  const isEditing = !!state.editingRecordId;
+  return `<div class="form-workspace"><section class="form-workspace-header"><div><div class="form-workspace-kicker">${LANG==='ar'?'إدارة السجل':'RECORD MANAGEMENT'}</div><h1>${isEditing?(LANG==='ar'?'تعديل سجل':'Edit record'):(LANG==='ar'?'سجل عملية جديدة':'New operation record')} — ${esc(t(section.name))}</h1><p>${LANG==='ar'?'أدخل البيانات الأساسية أولًا. تحفظ المسودة تلقائيًا على هذا الجهاز أثناء العمل.':'Enter the core information first. The draft is saved automatically on this device while you work.'}</p></div><button class="btn btn-outline btn-sm" data-action="nav" data-view="list" data-section="${sectionId}">${LANG==='ar'?'العودة إلى السجل':'Back to register'}</button></section><section class="form-panel"><div class="draft-strip"><div class="draft-meta"><span id="draftStatus">${esc(draftMessage)}</span></div><button class="btn btn-outline btn-sm" data-action="discard-draft" data-section="${sectionId}">${esc(t(STR.discardDraft))}</button></div><div class="form-grid">${fieldsHtml}</div><div class="form-actions"><button class="btn btn-outline" data-action="nav" data-view="list" data-section="${sectionId}">${esc(t(STR.cancel))}</button><button class="btn btn-primary" data-action="save-record" data-section="${sectionId}">${LANG==='ar'?'حفظ السجل':'Save record'}</button></div></section></div>`;
+}
+
+function renderImageField(path, arr, labelHtml){
+  arr = asArray(arr);
+  const thumbs = arr.map((imgId,idx)=>`<div class="img-thumb"><img data-imgid="${imgId}" loading="lazy" alt=""><button class="rm" data-action="remove-image" data-field="${esc(path)}" data-index="${idx}">✕</button></div>`).join('');
+  return `<div class="field field-full">${labelHtml}
+    <div class="img-grid">${thumbs}
+      <label class="file-btn">📷 ${esc(t(STR.addPhotos))}<input type="file" accept="image/*" multiple data-action="add-image" data-field="${esc(path)}"></label>
+    </div>
+  </div>`;
+}
+
+function renderField(f, record){
+  const val = getPath(record, f.key);
+  const req = f.required ? '<span class="req">*</span>' : '';
+  const label = `<label>${esc(t(f.label))} ${req}</label>`;
+  const full = (f.type==='textarea'||f.type==='group'||f.type==='multiDate'||f.type==='image'||f.type==='computed') ? ' field-full' : '';
+
+  if(f.type==='text'){
+    return `<div class="field${full}">${label}<input type="text" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+  }
+  if(f.type==='number'){
+    return `<div class="field${full}">${label}<input type="text" inputmode="decimal" data-field="${f.key}" value="${esc(val!=null?val:'')}"></div>`;
+  }
+  if(f.type==='date'){
+    return `<div class="field${full}">${label}<input type="text" inputmode="text" autocomplete="off" placeholder="YYYY-MM-DD" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+  }
+  if(f.type==='textarea'){
+    return `<div class="field${full}">${label}<textarea data-field="${f.key}">${esc(val||'')}</textarea></div>`;
+  }
+  if(f.type==='unit'){
+    return `<div class="field${full}">${label}
+      <input type="text" list="unitOptionsList" data-field="${f.key}" value="${esc(val||'')}">
+    </div>`;
+  }
+  if(f.type==='select'){
+    const opts = (f.options||[]).map(o=>`<option value="${esc(o.value)}" ${o.value===val?'selected':''}>${esc(t(o.label))}</option>`).join('');
+    return `<div class="field${full}">${label}<select data-field="${f.key}"><option value="">--</option>${opts}</select></div>`;
+  }
+  if(f.type==='computed'){
+    let cv; try{ cv = f.compute(record||{}); }catch(e){ cv=null; }
+    const display = (cv==null || isNaN(cv)) ? '—' : cv.toFixed(2)+'%';
+    return `<div class="field field-full">${label}
+      <div class="computed-box" id="computed-${f.key}">${display}</div>
+      <div class="hint">${LANG==='ar'?'يُحسب تلقائياً':'Calculated automatically'}</div>
+    </div>`;
+  }
+  if(f.type==='multiDate'){
+    const arr = asArray(val);
+    const rows = arr.map((item,idx)=>`
+      <div class="md-row">
+        <input type="text" inputmode="text" autocomplete="off" data-field="${f.key}.${idx}.prod" value="${esc(item.prod||'')}" placeholder="${LANG==='ar'?'الإنتاج YYYY-MM-DD':'Production YYYY-MM-DD'}">
+        <span>→</span>
+        <input type="text" inputmode="text" autocomplete="off" data-field="${f.key}.${idx}.exp" value="${esc(item.exp||'')}" placeholder="${LANG==='ar'?'الانتهاء YYYY-MM-DD':'Expiry YYYY-MM-DD'}">
+        <button class="btn btn-danger btn-sm" data-action="remove-multidate" data-group="${f.key}" data-index="${idx}">✕</button>
+      </div>`).join('');
+    return `<div class="field field-full">${label}
+      <div class="group-block">${rows || `<div class="hint">${LANG==='ar'?'لا توجد تواريخ مضافة':'No dates added'}</div>`}
+      <button class="btn btn-outline btn-sm" data-action="add-multidate" data-group="${f.key}">+ ${LANG==='ar'?'إضافة تاريخ':'Add date'}</button></div>
+    </div>`;
+  }
+  if(f.type==='group'){
+    const arr = asArray(val);
+    const normalSubFields = f.fields.filter(sf=>sf.type!=='image');
+    const imageSubFields = f.fields.filter(sf=>sf.type==='image');
+    const items = arr.map((item,idx)=>{
+      const subHtml = normalSubFields.map(sf=>{
+        const rawValue = item[sf.key];
+        const sval = sf.key==='condition' && ['damaged','repair'].includes(rawValue) ? 'bad' : rawValue;
+        const subLabel = `<label>${esc(t(sf.label))}</label>`;
+        if(sf.type==='select'){
+          const opts = (sf.options||[]).map(o=>`<option value="${esc(o.value)}" ${o.value===sval?'selected':''}>${esc(t(o.label))}</option>`).join('');
+          return `<div class="field">${subLabel}<select data-field="${f.key}.${idx}.${sf.key}"><option value="">--</option>${opts}</select></div>`;
         }
-      };
-      reader.onerror = (err) => {
-        console.error('file read failed:', err);
-        showToast(t(STR.imageSaveFailed));
-        remaining--;
-        if(remaining === 0) render();
-      };
-      reader.readAsDataURL(file);
+        if(sf.type==='textarea') return `<div class="field" style="grid-column:1/-1">${subLabel}<textarea data-field="${f.key}.${idx}.${sf.key}">${esc(sval||'')}</textarea></div>`;
+        if(sf.type==='unit') return `<div class="field">${subLabel}<input type="text" list="unitOptionsList" data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval||'')}"></div>`;
+        const inputType = 'text';
+        const extraAttrs = sf.type==='number' ? ' inputmode="decimal"' : '';
+        const dateAttrs = sf.type==='date' ? ' inputmode="text" autocomplete="off" placeholder="YYYY-MM-DD"' : '';
+        return `<div class="field">${subLabel}<input type="${inputType}"${extraAttrs}${dateAttrs} data-field="${f.key}.${idx}.${sf.key}" value="${esc(sval!=null?sval:'')}"></div>`;
+      }).join('');
+      const imageHtml = imageSubFields.map(sf=> renderImageField(`${f.key}.${idx}.${sf.key}`, item[sf.key], `<label>${esc(t(sf.label))}</label>`)).join('');
+      return `<div class="group-item"><span class="chip">#${idx+1}</span>
+        <div class="grid-mini" style="margin-top:8px;">${subHtml}</div>
+        ${imageHtml}
+        <div class="rm-row"><button class="btn btn-danger btn-sm" data-action="remove-group-item" data-group="${f.key}" data-index="${idx}">🗑️ ${esc(t(STR.delete))}</button></div>
+      </div>`;
+    }).join('');
+    return `<div class="field field-full">
+      <div class="group-block">
+        <div class="group-header"><b>${esc(t(f.label))}</b>
+        <button class="btn btn-primary btn-sm" data-action="add-group-item" data-group="${f.key}">+ ${esc(t(STR.add))}</button></div>
+        ${items || `<div class="hint">${LANG==='ar'?'لا توجد عناصر بعد':'No items yet'}</div>`}
+      </div>
+    </div>`;
+  }
+  if(f.type==='image'){
+    return renderImageField(f.key, val, label);
+  }
+  return '';
+}
+
+function unitDatalist(){
+  return `<datalist id="unitOptionsList">${UNIT_OPTIONS.map(u=>`<option value="${esc(LANG==='ar'?u.ar:u.en)}">`).join('')}</datalist>`;
+}
+
+async function hydrateAllImages(){
+  const imgs = document.querySelectorAll('img[data-imgid]');
+  const promises = Array.from(imgs).map(async img=>{
+    const id = img.getAttribute('data-imgid');
+    if(/^https?:\/\//.test(id)){ img.src = id; return; }
+    try{
+      const url = await getImage(id);
+      if(url) img.src = url;
+    }catch(e){ console.warn('Image hydration failed:', e); }
+  });
+  await Promise.all(promises);
+  const existingDatalist = document.getElementById('unitOptionsList');
+  if(existingDatalist) existingDatalist.remove();
+  const div = document.createElement('div'); div.innerHTML = unitDatalist(); document.body.appendChild(div.firstChild);
+}
+
+function updateComputedDisplays(section){
+  if(!state.currentRecord) return;
+  if(section.id==='containers'){
+    const details = Array.isArray(state.currentRecord.containerDetails) ? state.currentRecord.containerDetails : [];
+    const totalQty = details.reduce((s,c)=>s+(parseFloat(c.qty)||0),0);
+    const totalNC = details.reduce((s,c)=>s+(parseFloat(c.nc)||0),0);
+    const totalLoss = details.reduce((s,c)=>s+(parseFloat(c.loss)||0),0);
+    /* totalReback كان يُحسب عند الحفظ فقط، فتظهر قيمة قديمة أثناء التعبئة — الآن يتزامن لحظياً */
+    const totalReback = details.reduce((s,c)=>s+(parseFloat(c.reback)||0),0);
+    state.currentRecord.billQty = totalQty;
+    state.currentRecord.containerCount = details.length;
+    state.currentRecord.totalNC = totalNC;
+    state.currentRecord.totalLoss = totalLoss;
+    state.currentRecord.totalReback = totalReback;
+    const bqEl = document.getElementById('billQty'); if(bqEl) bqEl.value = totalQty;
+    const ccEl = document.getElementById('containerCount'); if(ccEl) ccEl.value = details.length;
+    const ncEl = document.getElementById('totalNC'); if(ncEl) ncEl.value = totalNC;
+    const lsEl = document.getElementById('totalLoss'); if(lsEl) lsEl.value = totalLoss;
+    const rbEl = document.getElementById('totalReback'); if(rbEl) rbEl.value = totalReback;
+  }
+  section.fields.filter(f=>f.type==='computed').forEach(f=>{
+    const el = document.getElementById('computed-'+f.key);
+    if(!el) return;
+    let val; try{ val = f.compute(state.currentRecord); }catch(e){ val=null; }
+    el.textContent = (val==null||isNaN(val)) ? '—' : val.toFixed(2)+'%';
+  });
+}
+
+/* ===================== Files Library (local device) ===================== */
+let FILES_CACHE = [];
+async function refreshFilesCache(){
+  const list = await getExportedFiles();
+  FILES_CACHE = list.sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  if(state.view==='files') render();
+}
+function renderFilesView(){
+  const kindIcon = {pdf:'📄', xlsx:'📊', csv:'📋'};
+  const rows = FILES_CACHE.map(f=>`
+    <div class="record-card">
+      <div class="top">
+        <div><div class="main">${kindIcon[f.kind]||'📁'} ${esc(f.filename)}</div><div class="meta">${f.createdAt? new Date(f.createdAt).toLocaleString(LANG==='ar'?'ar-EG':'en-GB'):''}</div></div>
+      </div>
+      <div class="actions" style="margin-top:8px;flex-wrap:wrap;">
+        ${f.kind==='pdf' ? `<button class="btn btn-outline btn-sm" data-action="view-stored-file" data-id="${f.id}">👁️ ${esc(t(STR.viewFile))}</button>`:''}
+        <button class="btn btn-outline btn-sm" data-action="share-stored-file" data-id="${f.id}">📤 ${esc(t(STR.shareFile))}</button>
+        <button class="btn btn-outline btn-sm" data-action="download-stored-file" data-id="${f.id}">⬇️ ${esc(t(STR.downloadAgain))}</button>
+        <button class="btn btn-danger btn-sm" data-action="delete-stored-file" data-id="${f.id}">🗑️</button>
+      </div>
+    </div>`).join('');
+  return `
+  <div class="card">
+    <div class="section-title"><h2>📁 ${esc(t(STR.filesTab))}</h2></div>
+    <div class="hint" style="margin-bottom:10px;">${esc(t(STR.filesHint))}</div>
+    ${rows || `<div class="empty-state"><div class="ico">📭</div>${esc(t(STR.noRecords))}</div>`}
+  </div>`;
+}
+
+/* ===================== Monthly Report ===================== */
+function renderMonthly(){
+  const sections = getAllSections();
+  const {month, year} = state.monthly;
+  const monthStr = String(month).padStart(2,'0');
+  const prefix = `${year}-${monthStr}`;
+  const summaries = sections.map(s=>{
+    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
+    const numFields = s.fields.filter(f=>f.type==='number');
+    const totals = numFields.map(f=>{
+      const sum = recs.reduce((acc,r)=> acc + (parseFloat(r[f.key])||0), 0);
+      return {label:f.label, sum};
     });
-  }
-  if(el.getAttribute('data-action')==='filter-from'){ state.dateFrom = el.value; render(); }
-  if(el.getAttribute('data-action')==='filter-to'){ state.dateTo = el.value; render(); }
-  if(el.getAttribute('data-action')==='monthly-month'){ state.monthly.month = parseInt(el.value,10); render(); }
-  if(el.getAttribute('data-action')==='monthly-year'){ state.monthly.year = parseInt(el.value,10); render(); }
-  if(el.getAttribute('data-action')==='dashboard-trend-metric'){ state.dashboardTrendMetric = el.value; render(); }
-  if(el.getAttribute('data-action')==='dashboard-trend-months'){ state.dashboardTrendMonths = parseInt(el.value,10); render(); }
-});
+    return {section:s, count:recs.length, totals};
+  });
 
-document.addEventListener('click', e=>{
-  const el = e.target.closest('[data-action]');
-  if(!el) return;
-  const action = el.getAttribute('data-action');
+  const rows = summaries.map(s=>`
+    <tr>
+      <td>${s.section.icon} ${esc(t(s.section.name))}</td>
+      <td>${s.count}</td>
+      <td>${s.totals.map(tt=>`${esc(t(tt.label))}: <b>${tt.sum}</b>`).join(' · ') || '—'}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" data-action="export-csv-month" data-section="${s.section.id}">CSV</button>
+        <button class="btn btn-outline btn-sm" data-action="export-xlsx-month" data-section="${s.section.id}">Excel</button>
+        <button class="btn btn-outline btn-sm" data-action="export-pdf-month" data-section="${s.section.id}">PDF</button>
+      </td>
+    </tr>`).join('');
 
-  /* ---- Chat actions ---- */
-  if(action==='send-chat'){
-    const input = document.getElementById('chatInput');
-    const text = (input.value||'').trim();
-    if(!text) return;
-    const user = getCurrentUser();
-    qaCol('chatMessages/items').doc(uid()).set({
-      userId: user.id,
-      userName: user.name,
-      text: text,
-      time: new Date().toISOString()
-    }).then(() => {
-      input.value = '';
-    }).catch(err => {
-      console.warn('Send chat error', err);
-      showToast(LANG==='ar'?'فشل الإرسال':'Failed to send');
-    });
-    return;
-  }
+  const years = []; const curY = new Date().getFullYear(); for(let y=curY-2;y<=curY+1;y++) years.push(y);
+  const monthOptions = Array.from({length:12},(_,i)=>i+1);
 
-  /* ---- Auth actions ---- */
-  if(action==='auth-goto'){
-    const screen = el.getAttribute('data-screen');
-    if(screen==='welcome') state.formTemp = {};
-    state.auth = {screen}; render(); return;
-  }
-  if(action==='auth-goto-admin'){ state.auth = {screen: isAdminSetup() ? 'adminLogin' : 'adminSetup'}; render(); return; }
-  if(action==='auth-pick-user'){ state.auth = {screen:'lock', targetUserId: el.getAttribute('data-id')}; render(); return; }
-  if(action==='auth-find-account'){
-    const name = (document.getElementById('findAccountName').value||'').trim();
-    if(!name){ showToast(t(STR.requiredMissing)); return; }
-    const found = getUsers().find(u=> (u.name||'').trim().toLowerCase() === name.toLowerCase());
-    if(!found){ showToast(t(STR.accountNotFound)); return; }
-    state.auth = {screen:'lock', targetUserId: found.id};
-    render();
-    return;
-  }
-  if(action==='auth-switch'){ state.auth = {screen:'welcome'}; render(); return; }
-  if(action==='auth-save-profile'){
-    const user = getCurrentUser();
-    if(!user) return;
-    const name = (document.getElementById('profileName').value||'').trim();
-    const phone = (document.getElementById('profilePhone').value||'').trim();
-    const email = (document.getElementById('profileEmail').value||'').trim();
-    if(!name){ showToast(t(STR.requiredMissing)); return; }
-    user.name = name; user.phone = phone; user.email = email;
-    saveUserRemote(user).then(()=>{ render(); showToast(t(STR.savedOk)); }).catch(()=> showToast(LANG==='ar'?'تعذر حفظ الملف الشخصي':'Could not save profile'));
-    return;
-  }
-  if(action==='auth-update-profile-pic'){
-    const file = el.files[0];
-    if(!file) return;
-    showToast(t(STR.addingPhotos));
-    uploadProfilePicture(file).then(url => {
-      const user = getCurrentUser();
-      if(user){
-        user.profilePic = url;
-        return saveUserRemote(user).then(()=>{
-          render();
-          showToast(t(STR.photosAdded));
-        });
-      }
-    }).catch(() => showToast(t(STR.profilePhotoInvalid)));
-    return;
-  }
-  if(action==='auth-request-reset'){
-    const targetId = state.auth.targetUserId;
-    const u = getUsers().find(x=>x.id===targetId);
-    if(!u) return;
-    qaCol('passwordResetRequests/items').doc(uid()).set({userId:u.id, name:u.name, time:new Date().toISOString()})
-      .then(()=> showToast(t(STR.resetRequestSent)))
-      .catch(err=> console.warn('reset request error', err));
-    return;
-  }
-
-  if(action==='auth-submit-accesscode'){
-    const val = (document.getElementById('accessCodeInput').value||'').trim();
-    if(val !== getMasterCode()){ showToast(t(STR.accessCodeWrong)); return; }
-    state.regTempBiometric = null;
-    state.auth = {screen:'register'};
-    render();
-    return;
-  }
-
-  if(action==='auth-register-biometric'){
-    (async ()=>{
-      const nameField = document.getElementById('regName');
-      const label = (nameField && nameField.value.trim()) || 'user';
-      const available = await biometricAvailable();
-      if(!available){ showToast(t(STR.biometricNotAvailable)); return; }
-      const credId = await registerBiometric(label);
-      if(credId){ state.regTempBiometric = credId; render(); } else { showToast(t(STR.biometricNotAvailable)); }
-    })();
-    return;
-  }
-
-  if(action==='auth-submit-register'){
-    (async ()=>{
-      const name = (document.getElementById('regName').value||'').trim();
-      const role = document.getElementById('regRole').value;
-      const phone = (document.getElementById('regPhone').value||'').trim();
-      const email = (document.getElementById('regEmail').value||'').trim();
-      const pass = document.getElementById('regPass').value;
-      const pass2 = document.getElementById('regPass2').value;
-      if(!name){ showToast(t(STR.requiredMissing)); return; }
-      if(pass.length<4){ showToast(t(STR.passwordTooShort)); return; }
-      if(pass!==pass2){ showToast(t(STR.passwordMismatch)); return; }
-      const passwordHash = await sha256Hex(pass);
-      const user = { 
-        id:uid(), name, role, phone, email, passwordHash, 
-        biometricCredId: state.regTempBiometric||null, 
-        profilePic: state.regTempPic || null,
-        createdAt:new Date().toISOString() 
-      };
-      await saveUserRemote(user);
-      Store.set('qa_currentUserId', user.id);
-      markUserKnownOnThisDevice(user.id);
-      pushAccessLog({name, role, time:new Date().toISOString(), type:'register'});
-      sessionStorage.setItem('qa_unlocked','1');
-      state.regTempBiometric = null; state.regTempPic = null; state.auth = null; state.view='home'; state.formTemp = {};
-      showToast(t(STR.savedOk)); render();
-    })();
-    return;
-  }
-
-  if(action==='auth-submit-adminsetup'){
-    (async ()=>{
-      const p1 = document.getElementById('adminPass').value;
-      const p2 = document.getElementById('adminPass2').value;
-      if(p1.length<6){ showToast(t(STR.passwordTooShort)); return; }
-      if(p1!==p2){ showToast(t(STR.passwordMismatch)); return; }
-      const hash = await sha256Hex(p1);
-      await saveMetaRemote({adminPasswordHash: hash});
-      Store.set('qa_currentUserId', '__admin__');
-      pushAccessLog({name:t(STR.roleAdmin), role:t(STR.roleAdmin), time:new Date().toISOString(), type:'admin-setup'});
-      sessionStorage.setItem('qa_unlocked','1');
-      state.auth = null; state.view='home'; state.formTemp = {};
-      showToast(t(STR.savedOk)); render();
-    })();
-    return;
-  }
-
-  if(action==='auth-submit-adminlogin'){
-    (async ()=>{
-      const p = document.getElementById('adminLoginPass').value;
-      const hash = await sha256Hex(p);
-      if(hash !== META_CACHE.adminPasswordHash){ showToast(t(STR.wrongPassword)); return; }
-      Store.set('qa_currentUserId', '__admin__');
-      pushAccessLog({name:t(STR.roleAdmin), role:t(STR.roleAdmin), time:new Date().toISOString(), type:'admin-login'});
-      sessionStorage.setItem('qa_unlocked','1');
-      state.auth = null; state.view='home'; state.formTemp = {};
-      render();
-    })();
-    return;
-  }
-
-  if(action==='auth-unlock-password'){
-    (async ()=>{
-      const targetId = state.auth.targetUserId;
-      const p = document.getElementById('lockPass').value;
-      const hash = await sha256Hex(p);
-      let ok=false, name='', role='';
-      if(targetId==='__admin__'){ ok = hash===META_CACHE.adminPasswordHash; name=t(STR.roleAdmin); role=t(STR.roleAdmin); }
-      else { const u = getUsers().find(x=>x.id===targetId); if(u){ ok = hash===u.passwordHash; name=u.name; role=u.role; } }
-      if(!ok){ showToast(t(STR.wrongPassword)); return; }
-      Store.set('qa_currentUserId', targetId);
-      markUserKnownOnThisDevice(targetId);
-      pushAccessLog({name, role, time:new Date().toISOString(), type:'login'});
-      sessionStorage.setItem('qa_unlocked','1');
-      state.auth = null; state.view='home'; state.formTemp = {};
-      render();
-    })();
-    return;
-  }
-
-  if(action==='auth-unlock-biometric'){
-    (async ()=>{
-      const targetId = state.auth.targetUserId;
-      let credId=null, name='', role='';
-      if(targetId==='__admin__'){ credId = META_CACHE.adminBiometricCredId; name=t(STR.roleAdmin); role=t(STR.roleAdmin); }
-      else { const u = getUsers().find(x=>x.id===targetId); if(u){ credId=u.biometricCredId; name=u.name; role=u.role; } }
-      if(!credId){ showToast(t(STR.biometricNotAvailable)); return; }
-      const ok = await verifyBiometric(credId);
-      if(!ok){ showToast(t(STR.biometricNotAvailable)); return; }
-      Store.set('qa_currentUserId', targetId);
-      markUserKnownOnThisDevice(targetId);
-      pushAccessLog({name, role, time:new Date().toISOString(), type:'login-biometric'});
-      sessionStorage.setItem('qa_unlocked','1');
-      state.auth = null; state.view='home'; state.formTemp = {};
-      render();
-    })();
-    return;
-  }
-
-  if(action==='auth-logout'){
-    document.querySelectorAll('.modal-overlay').forEach(m=>m.remove());
-    Store.set('qa_currentUserId', null);
-    sessionStorage.removeItem('qa_unlocked');
-    state.auth = {screen:'welcome'};
-    state.formTemp = {};
-    render();
-    return;
-  }
-
-  if(action==='toggle-user-admin'){
-    const id = el.getAttribute('data-id');
-    const u = getUsers().find(x=>x.id===id);
-    if(!u) return;
-    const updated = Object.assign({}, u, {isAdmin: !u.isAdmin});
-    saveUserRemote(updated);
-    return;
-  }
-  if(action==='open-reset-modal'){
-    showResetPasswordModal(el.getAttribute('data-userid'), el.getAttribute('data-reqid'), el.getAttribute('data-name'));
-    return;
-  }
-  if(action==='confirm-reset-password'){
-    (async ()=>{
-      const userId = el.getAttribute('data-userid');
-      const reqId = el.getAttribute('data-reqid');
-      const newPass = (document.getElementById('newPassForUser').value||'').trim();
-      if(newPass.length<4){ showToast(t(STR.passwordTooShort)); return; }
-      const u = getUsers().find(x=>x.id===userId);
-      if(!u) return;
-      const passwordHash = await sha256Hex(newPass);
-      await saveUserRemote(Object.assign({}, u, {passwordHash}));
-      qaCol('passwordResetRequests/items').doc(reqId).delete().catch(()=>{});
-      document.querySelectorAll('.modal-overlay').forEach(m=>m.remove());
-      alert(t(STR.resetDonePrefix) + '\n\n' + newPass);
-    })();
-    return;
-  }
-  if(action==='revoke-user'){
-    if(!confirm(t(STR.revokeConfirm))) return;
-    const id = el.getAttribute('data-id');
-    deleteUserRemote(id);
-    return;
-  }
-  if(action==='save-master-code'){
-    const val = (document.getElementById('masterCodeInput').value||'').trim();
-    if(!val) return;
-    saveMetaRemote({masterCode: val});
-    delete state.formTemp.masterCodeInput;
-    showToast(t(STR.savedOk));
-    return;
-  }
-
-  /* ---- General app actions ---- */
-  if(action==='nav'){
-    const view = el.getAttribute('data-view'); const section = el.getAttribute('data-section');
-    if(view==='builder' && !isAdmin()){ showToast(t(STR.adminOnlyNotice)); return; }
-    state.view = view; state.viewSectionId = section || null; state.search=''; state.dateFrom=''; state.dateTo='';
-    render();
-    if(view==='files') refreshFilesCache();
-  }
-  else if(action==='toggle-lang'){ LANG = LANG==='ar'?'en':'ar'; localStorage.setItem('qa_lang', LANG); render(); }
-  else if(action==='open-account-modal'){ showAccountModal(); }
-  else if(action==='close-modal'){ document.querySelectorAll('.modal-overlay').forEach(m=>m.remove()); }
-
-  else if(action==='dashboard-period'){ state.dashboardPeriod = el.getAttribute('data-value'); render(); }
-
-  else if(action==='new-record'){
-    const sectionId = el.getAttribute('data-section'); const section = getSection(sectionId);
-    const savedDraft = getFormDraft(sectionId);
-    state.currentRecord = savedDraft ? savedDraft.record : newRecord(section);
-    state.draftRestored = !!savedDraft;
-    if(!state.currentRecord.date) state.currentRecord.date = todayISO();
-    state.view='form'; state.viewSectionId = sectionId; render();
-    if(savedDraft) showToast(t(STR.draftRestored));
-  }
-  else if(action==='view-record'){
-    const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
-    const rec = getRecords(sectionId).find(r=>r.id===id);
-    if(!rec){ showToast(t(STR.noRecords)); return; }
-    state.detailSectionId = sectionId; state.detailRecord = JSON.parse(JSON.stringify(rec)); state.view='detail'; render();
-  }
-  else if(action==='back-to-list'){
-    state.view='list'; state.viewSectionId=el.getAttribute('data-section'); state.detailRecord=null; render();
-  }
-  else if(action==='edit-record'){
-    const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
-    const rec = getRecords(sectionId).find(r=>r.id===id);
-    if(!rec){ showToast(t(STR.noRecords)); return; }
-    state.currentRecord = JSON.parse(JSON.stringify(rec));
-    state.view='form'; state.viewSectionId = sectionId; render();
-  }
-  else if(action==='delete-record'){
-    const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
-    if(!confirm(t(STR.confirmDelete))) return;
-    deleteRecordRemote(sectionId, id);
-    showToast(t(STR.deletedOk));
-  }
-  else if(action==='save-record'){
-    const sectionId = el.getAttribute('data-section'); const section = getSection(sectionId);
-    const rec = state.currentRecord;
-    const missing = section.fields.filter(f=> f.required && (rec[f.key]===undefined || rec[f.key]===null || rec[f.key]===''));
-    if(missing.length){ showToast(t(STR.requiredMissing)); return; }
-    
-    updateAggregates(sectionId, rec);
-    
-    (async ()=>{
-      try{
-        await saveRecordRemote(sectionId, rec);
-        clearFormDraft(sectionId);
-        state.draftRestored = false;
-        showToast(t(STR.savedOk));
-        state.view='list'; render();
-      }catch(err){
-        console.error('save-record error:', err);
-        showToast('Failed to save record. Check your internet connection.');
-      }
-    })();
-  }
-
-  else if(action==='add-group-item'){
-    const key = el.getAttribute('data-group');
-    const section = getSection(state.viewSectionId);
-    const field = section.fields.find(f=>f.key===key);
-    const item = {}; field.fields.forEach(sf=> item[sf.key] = sf.type==='image' ? [] : '');
-    if(!state.currentRecord[key]) state.currentRecord[key]=[];
-    state.currentRecord[key].push(item); saveCurrentDraft(state.viewSectionId); render();
-  }
-  else if(action==='remove-group-item'){
-    const key = el.getAttribute('data-group'); const idx = parseInt(el.getAttribute('data-index'),10);
-    state.currentRecord[key].splice(idx,1); saveCurrentDraft(state.viewSectionId); render();
-  }
-  else if(action==='add-multidate'){
-    const key = el.getAttribute('data-group');
-    if(!state.currentRecord[key]) state.currentRecord[key]=[];
-    state.currentRecord[key].push({prod:'',exp:''}); saveCurrentDraft(state.viewSectionId); render();
-  }
-  else if(action==='remove-multidate'){
-    const key = el.getAttribute('data-group'); const idx = parseInt(el.getAttribute('data-index'),10);
-    state.currentRecord[key].splice(idx,1); saveCurrentDraft(state.viewSectionId); render();
-  }
-  else if(action==='remove-image'){
-    const path = el.getAttribute('data-field'); const idx = parseInt(el.getAttribute('data-index'),10);
-    const arr = getPath(state.currentRecord, path) || [];
-    const imgId = arr[idx];
-    deleteImageFromDB(imgId);
-    arr.splice(idx,1);
-    setPath(state.currentRecord, path, arr);
-    saveCurrentDraft(state.viewSectionId);
-    render();
-  }
-
-  else if(action==='discard-draft'){
-    const sectionId = el.getAttribute('data-section');
-    const section = getSection(sectionId);
-    clearFormDraft(sectionId);
-    state.currentRecord = newRecord(section);
-    if(!state.currentRecord.date) state.currentRecord.date = todayISO();
-    state.draftRestored = false;
-    render();
-    showToast(t(STR.draftDiscarded));
-  }
-
-  else if(action==='clear-section-filters'){ clearSectionFilters(el.getAttribute('data-section')); render(); }
-  else if(action==='export-filtered-csv'){ const sectionId=el.getAttribute('data-section'); exportSectionCSV(sectionId, r=>recordMatchesSectionFilters(sectionId,r)); }
-  else if(action==='export-filtered-xlsx'){ const sectionId=el.getAttribute('data-section'); exportSectionXLSX(sectionId, r=>recordMatchesSectionFilters(sectionId,r)); }
-  else if(action==='export-csv'){ exportSectionCSV(el.getAttribute('data-section')); }
-  else if(action==='export-xlsx'){ exportSectionXLSX(el.getAttribute('data-section')); }
-  else if(action==='export-csv-month'){
-    const {month,year}=state.monthly; const prefix = `${year}-${String(month).padStart(2,'0')}`;
-    const sectionId=el.getAttribute('data-section'); exportSectionCSV(sectionId, r=> r.date && r.date.startsWith(prefix), `${sectionId}_Monthly_${prefix}.csv`);
-  }
-  else if(action==='export-xlsx-month'){
-    const {month,year}=state.monthly; const prefix = `${year}-${String(month).padStart(2,'0')}`;
-    const sectionId=el.getAttribute('data-section'); exportSectionXLSX(sectionId, r=> r.date && r.date.startsWith(prefix), `${sectionId}_Monthly_${prefix}.xlsx`);
-  }
-  else if(action==='export-combined-month'){ exportCombinedMonth(); }
-  else if(action==='export-combined-month-pdf'){ exportCombinedMonthPDF(); }
-  else if(action==='share-record-pdf'){ shareRecordAsPDF(el.getAttribute('data-section'), el.getAttribute('data-id')); }
-  else if(action==='share-filtered-pdf'){ shareFilteredPDF(el.getAttribute('data-section')); }
-  else if(action==='share-daily-pdf'){ shareDailyPDF(el.getAttribute('data-section'), todayISO()); }
-  else if(action==='export-pdf-month'){ const {month,year}=state.monthly; shareMonthlyPDF(el.getAttribute('data-section'), year, month); }
-  else if(action==='download-stored-file'){
-    const f = FILES_CACHE.find(x=>x.id===el.getAttribute('data-id'));
-    if(f) downloadDataUrlFile(f.filename, f.dataUrl);
-  }
-  else if(action==='view-stored-file'){
-    const f = FILES_CACHE.find(x=>x.id===el.getAttribute('data-id'));
-    if(f) viewDataUrlFile(f.dataUrl);
-  }
-  else if(action==='share-stored-file'){
-    const f = FILES_CACHE.find(x=>x.id===el.getAttribute('data-id'));
-    if(f) shareStoredFileMeta(f);
-  }
-  else if(action==='delete-stored-file'){
-    const id = el.getAttribute('data-id');
-    deleteExportedFile(id).then(()=>{ FILES_CACHE = FILES_CACHE.filter(x=>x.id!==id); render(); });
-  }
-
-  else if(action==='add-builder-field'){ state.builderFields.push({labelAr:'',labelEn:'',type:'text',optionsCsv:''}); render(); }
-  else if(action==='toggle-builtin-editor'){
-    const sid = el.getAttribute('data-section');
-    state.builtinFieldTarget = (state.builtinFieldTarget===sid) ? null : sid;
-    state.builderFields = [];
-    render();
-  }
-  else if(action==='save-builtin-fields'){
-    const sid = el.getAttribute('data-section');
-    if(!state.builderFields.length){ showToast(t(STR.requiredMissing)); return; }
-    state.builderFields.forEach((bf,i)=>{
-      const key = 'ext'+Date.now().toString(36)+i+'_'+(bf.labelEn||bf.labelAr||'field').toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,16);
-      const field = {key: key, type: bf.type, label:{ar: bf.labelAr||bf.labelEn, en: bf.labelEn||bf.labelAr}};
-      if(bf.type==='select'){
-        field.options = (bf.optionsCsv||'').split(',').map(s=>s.trim()).filter(Boolean).map(v=>({value:v, label:{ar:v, en:v}}));
-      }
-      addFieldToBuiltinSection(sid, field);
-    });
-    state.builderFields = [];
-    state.builtinFieldTarget = null;
-    showToast(t(STR.savedOk));
-    render();
-  }
-  else if(action==='remove-builtin-field'){
-    const sid = el.getAttribute('data-section'); const fieldKey = el.getAttribute('data-fieldkey');
-    if(!confirm(t(STR.deleteSectionConfirm))) return;
-    removeFieldFromBuiltinSection(sid, fieldKey);
-  }
-  else if(action==='remove-builder-field'){ const idx=parseInt(el.getAttribute('data-index'),10); state.builderFields.splice(idx,1); render(); }
-  else if(action==='delete-section'){
-    if(!confirm(t(STR.deleteSectionConfirm))) return;
-    const sid = el.getAttribute('data-section');
-    deleteCustomSectionRemote(sid);
-  }
-  else if(action==='save-custom-section'){
-    const nameAr = document.getElementById('newSecNameAr').value.trim();
-    const nameEn = document.getElementById('newSecNameEn').value.trim();
-    const icon = document.getElementById('newSecIcon').value.trim() || '📋';
-    if(!nameAr && !nameEn){ showToast(t(STR.requiredMissing)); return; }
-    const fields = [{key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true}];
-    state.builderFields.forEach((bf,i)=>{
-      const key = 'f'+i+'_'+(bf.labelEn||bf.labelAr||'field').toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,16);
-      const field = {key: key||('f'+i), type: bf.type, label:{ar: bf.labelAr||bf.labelEn, en: bf.labelEn||bf.labelAr}};
-      if(bf.type==='select'){
-        field.options = (bf.optionsCsv||'').split(',').map(s=>s.trim()).filter(Boolean).map(v=>({value:v, label:{ar:v, en:v}}));
-      }
-      fields.push(field);
-    });
-    const newSection = { id:'custom_'+uid(), builtin:false, icon, name:{ar:nameAr||nameEn, en:nameEn||nameAr}, listFields: fields.slice(0,4).map(f=>f.key), fields };
-    saveCustomSection(newSection);
-    state.builderFields = [];
-    delete state.formTemp.newSecNameAr; delete state.formTemp.newSecNameEn; delete state.formTemp.newSecIcon;
-    showToast(t(STR.savedOk));
-    render();
-  }
-});
-
-/* ===================== Init ===================== */
-window.addEventListener('online', ()=>{ render(); retryPendingImageUploads(); });
-window.addEventListener('offline', render);
-window.addEventListener('beforeunload', ()=>{ if(state.view==='form') saveCurrentDraft(state.viewSectionId); });
-window.addEventListener('load', ()=>{
-  app.innerHTML = renderLoadingScreen();
-  subscribeAllCoreData();
-  setTimeout(()=>{ _metaReady = true; _usersReady = true; tryBootApp(); }, 6000);
-});
+  return `
+  <div class="card">
+    <div class="section-title"><h2>🗓️ ${esc(t(STR.monthly))}</h2></div>
+    <div class="toolbar">
+      <select data-action="monthly-month">${monthOptions.map(m=>`<option value="${m}" ${m==month?'selected':''}>${m}</option>`).join('')}</select>
+      <select data-action="monthly-year">${years.map(y=>`<option value="${y}" ${y==year?'selected':''}>${y}</option>`).join('')}</select>
+      <button class="btn btn-primary btn-sm" data-action="export-combined-month">${LANG==='ar'?'حزمة Excel الشهرية':'Monthly Excel package'}</button>
+      <button class="btn btn-outline btn-sm" data-action="export-combined-month-pdf">${LANG==='ar'?'تقرير PDF الموحد':'Combined PDF report'}</button>
+    </div>
+    <table class="summary-table">
+      <thead><tr><th>${LANG==='ar'?'القسم':'Section'}</th><th>${esc(t(STR.recordsCount))}</th><th>${esc(t(STR.summary))}</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
