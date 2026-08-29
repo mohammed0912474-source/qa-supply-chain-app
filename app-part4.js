@@ -166,13 +166,28 @@ document.addEventListener('click', e=>{
   if(action==='auth-switch'){ state.auth = {screen:'welcome'}; render(); return; }
   if(action==='auth-save-profile'){
     const user = getCurrentUser();
-    if(!user) return;
-    const name = (document.getElementById('profileName').value||'').trim();
-    const phone = (document.getElementById('profilePhone').value||'').trim();
-    const email = (document.getElementById('profileEmail').value||'').trim();
+    if(!user){ showToast(LANG==='ar'?'لا يوجد مستخدم مسجّل الدخول':'No signed-in user'); return; }
+    const nameEl = document.getElementById('profileName');
+    const phoneEl = document.getElementById('profilePhone');
+    const emailEl = document.getElementById('profileEmail');
+    if(!nameEl){ showToast(LANG==='ar'?'تعذّر قراءة حقول الملف الشخصي':'Could not read the profile fields'); return; }
+    const name = (nameEl.value||'').trim();
+    const phone = ((phoneEl&&phoneEl.value)||'').trim();
+    const email = ((emailEl&&emailEl.value)||'').trim();
     if(!name){ showToast(t(STR.requiredMissing)); return; }
+    if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){ showToast(LANG==='ar'?'صيغة البريد الإلكتروني غير صحيحة':'Invalid email format'); return; }
+    if(phone && !/^[+]?[\d\s()-]{6,20}$/.test(phone)){ showToast(LANG==='ar'?'صيغة رقم الهاتف غير صحيحة':'Invalid phone number'); return; }
+    // Keep the previous values so a failed write does not leave the UI lying.
+    const prev = {name:user.name, phone:user.phone, email:user.email};
     user.name = name; user.phone = phone; user.email = email;
-    saveUserRemote(user).then(()=>{ render(); showToast(t(STR.savedOk)); }).catch(()=> showToast(LANG==='ar'?'تعذر حفظ الملف الشخصي':'Could not save profile'));
+    saveUserRemote(user).then(()=>{
+      document.querySelectorAll('.modal-overlay').forEach(m=>m.remove());
+      render();
+      showToast(t(STR.savedOk));
+    }).catch(()=>{
+      user.name = prev.name; user.phone = prev.phone; user.email = prev.email;
+      showToast(LANG==='ar'?'تعذر حفظ الملف الشخصي':'Could not save profile');
+    });
     return;
   }
   if(action==='auth-update-profile-pic'){
@@ -184,7 +199,12 @@ document.addEventListener('click', e=>{
       if(user){
         user.profilePic = url;
         return saveUserRemote(user).then(()=>{
+          // Rebuild the account modal so the new picture is actually visible;
+          // re-rendering alone left the open modal showing the old image.
+          const wasOpen = !!document.querySelector('.modal-overlay');
+          document.querySelectorAll('.modal-overlay').forEach(m=>m.remove());
           render();
+          if(wasOpen) showAccountModal();
           showToast(t(STR.photosAdded));
         });
       }
@@ -411,6 +431,31 @@ document.addEventListener('click', e=>{
     if(!rec){ showToast(t(STR.noRecords)); return; }
     state.currentRecord = JSON.parse(JSON.stringify(rec));
     state.view='form'; state.viewSectionId = sectionId; render();
+  }
+  else if(action==='toggle-work-status'){
+    // Manual status control — the only thing that sets an operation's status.
+    const sectionId = el.getAttribute('data-section');
+    const id = el.getAttribute('data-id');
+    const next = el.getAttribute('data-next')==='completed' ? 'completed' : 'working';
+    const rec = getRecords(sectionId).find(r=>r.id===id);
+    if(!rec){ showToast(t(STR.noRecords)); return; }
+    const previous = workStatusOf(rec);
+    if(previous===next) return;
+    // Optimistic update so the row recolours instantly, rolled back on failure.
+    rec.workStatus = next;
+    rec._updated = new Date().toISOString();
+    if(state.detailRecord && state.detailRecord.id===id) state.detailRecord.workStatus = next;
+    render();
+    saveRecordRemote(sectionId, rec).then(()=>{
+      showToast(next==='completed'
+        ? (LANG==='ar'?'تم وضع العملية كمنتهية':'Operation marked completed')
+        : (LANG==='ar'?'أُعيدت العملية إلى قيد العمل':'Operation moved back to in progress'));
+    }).catch(()=>{
+      rec.workStatus = previous;
+      if(state.detailRecord && state.detailRecord.id===id) state.detailRecord.workStatus = previous;
+      render();
+      showToast(LANG==='ar'?'تعذر حفظ حالة العملية':'Could not save the operation status');
+    });
   }
   else if(action==='delete-record'){
     const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
