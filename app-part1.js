@@ -142,6 +142,31 @@ function todayISO(){ const d = new Date(); const y=d.getFullYear(); const m=Stri
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function pct(part,total){ const p=parseFloat(part)||0; const tt=parseFloat(total)||0; if(tt<=0) return null; return p/tt*100; }
 
+/* ===================== Work status (manual, all sections) =====================
+   Every operation in every section is either 'working' or 'completed'. The value
+   is set ONLY by the user (manual control) — nothing infers or derives it.
+   All analytics count 'completed' operations exclusively. */
+const WORK_STATUS_DEFAULT = 'working';
+function workStatusOf(record){
+  return (record && record.workStatus) === 'completed' ? 'completed' : WORK_STATUS_DEFAULT;
+}
+function isCompleted(record){ return workStatusOf(record) === 'completed'; }
+function completedOnly(records){ return (records||[]).filter(isCompleted); }
+function workStatusLabel(status){
+  return status === 'completed'
+    ? (LANG === 'ar' ? 'منتهية' : 'Completed')
+    : (LANG === 'ar' ? 'قيد العمل' : 'In progress');
+}
+/* Reads a numeric record total, falling back to summing the per-container rows
+   when the record-level aggregate was never stored. Keeps analytics correct for
+   records saved before aggregates existed. */
+function metricOf(record, totalKey, detailKey){
+  const direct = parseFloat(record && record[totalKey]);
+  if(Number.isFinite(direct)) return direct;
+  const rows = (record && record.containerDetails) || [];
+  return rows.reduce((sum,row)=> sum + (parseFloat(row && row[detailKey])||0), 0);
+}
+
 /* ===================== IndexedDB (images + exported files) ===================== */
 let _dbPromise=null;
 function openDB(){
