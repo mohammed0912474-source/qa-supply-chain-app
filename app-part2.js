@@ -25,7 +25,7 @@ function renderHome(){
   const currentPrefix = todayISO().slice(0,7);
   const monthRecords = sections.reduce((sum,s)=>sum+getRecords(s.id).filter(r=>(r.date||'').startsWith(currentPrefix)).length,0);
   const recent = sections.flatMap(s=>getRecords(s.id).map(r=>({section:s,record:r}))).sort((a,b)=>`${b.record.date||''}${b.record._created||''}`.localeCompare(`${a.record.date||''}${a.record._created||''}`)).slice(0,5);
-  const WORKSPACE_IMAGES = {containers:'/manus-storage/sudan-port-containers_0b9d3e59.jpg',trucks:'/manus-storage/sudan-truck-loading_1eb60934.jpg',rebacking:'/manus-storage/sudan-product-processing_725a65bd.jpg'};
+  const WORKSPACE_IMAGES = {containers:'containers.jpg',trucks:'trucks.jpg',rebacking:'rebacking.jpg'};
   const sectionCards = sections.map(s=>{
     const count=getRecords(s.id).length;
     const caption=s.id==='containers'?(LANG==='ar'?'متابعة البوالص وحالة التوزيع':'Bills of lading and dispatch readiness'):s.id==='trucks'?(LANG==='ar'?'فحص المركبات والمنتجات المحمّلة':'Vehicle and loaded-product inspection'):(LANG==='ar'?'تسجيل المعالجة والكميات والتالف':'Processing, quantities, and damage');
