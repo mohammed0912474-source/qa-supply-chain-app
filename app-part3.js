@@ -782,7 +782,8 @@ function renderLockScreen(){
   <div class="auth-title">${esc(t(STR.lockWelcomeBack))}</div>
   <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
   <div class="auth-sub">${esc(user.name)}</div>
-  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.enterPassword))}</label><input type="password" id="lockPass" value="${esc(state.formTemp.lockPass||'')}"></div>
+  <div class="auth-password-hint">${esc(t(STR.lockPasswordHint))}</div>
+  <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.enterPassword))}</label><input type="password" id="lockPass" autocomplete="current-password" placeholder="${esc(t(STR.lockPasswordPlaceholder))}" value="${esc(state.formTemp.lockPass||'')}"></div>
   <button class="btn btn-primary btn-block" data-action="auth-unlock-password">${esc(t(STR.unlockBtn))}</button>
   ${user.biometricCredId? `<button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="auth-unlock-biometric">${esc(t(STR.unlockBiometricBtn))}</button>`:''}
   ${!isAdminTarget? `<div style="text-align:center;margin-top:12px;"><button class="link-btn" data-action="auth-request-reset">${esc(t(STR.forgotPassword))}</button></div>`:''}
