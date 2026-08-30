@@ -466,6 +466,8 @@ const STR = {
   wrongPassword:{ar:'كلمة السر غير صحيحة', en:'Incorrect password'},
   lockWelcomeBack:{ar:'مرحباً بعودتك', en:'Welcome back'},
   enterPassword:{ar:'كلمة السر', en:'Password'},
+  lockPasswordHint:{ar:'أدخل كلمة السر للمتابعة إلى مساحة العمل', en:'Enter your password to continue to your workspace'},
+  lockPasswordPlaceholder:{ar:'اكتب كلمة السر', en:'Enter your password'},
   unlockBtn:{ar:'دخول', en:'Sign in'},
   unlockBiometricBtn:{ar:'🔓 دخول بالبصمة', en:'🔓 Sign in with fingerprint'},
   switchAccount:{ar:'مستخدم آخر', en:'Switch account'},
