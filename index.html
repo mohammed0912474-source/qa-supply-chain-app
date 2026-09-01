@@ -268,7 +268,19 @@ html[dir="rtl"] .records-table tbody tr.row-working td:first-child{box-shadow:in
 /* auth screens */
 .auth-screen{min-height:70vh; display:flex; align-items:center; justify-content:center; padding:28px 14px; background-size:cover; background-position:center; position:relative; isolation:isolate;}
 .auth-screen::before{content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(6,28,52,.46),rgba(6,28,52,.24) 52%,rgba(6,28,52,.42)); z-index:-1;}
-.auth-box{width:100%; max-width:460px; background:rgba(255,255,255,.96); border:1px solid rgba(255,255,255,.72); border-radius:14px; padding:22px 22px 20px; box-shadow:0 14px 40px rgba(0,0,0,.22);}
+/* لوحة الدخول أصبحت جزءاً من الخلفية (زجاجية) بدل نافذة بيضاء معتمة تحجب الصورة. */
+.auth-panel{width:100%; max-width:470px; background:linear-gradient(160deg,rgba(9,32,56,.60),rgba(6,22,40,.72)); -webkit-backdrop-filter:blur(22px) saturate(150%); backdrop-filter:blur(22px) saturate(150%); border:1px solid rgba(255,255,255,.20); border-radius:20px; padding:26px 24px 22px; box-shadow:0 24px 60px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.14); color:#fff;}
+.auth-panel h1,.auth-panel h2,.auth-panel h3,.auth-panel .auth-title{color:#fff;}
+.auth-panel label{color:rgba(255,255,255,.88); font-weight:600;}
+.auth-panel .auth-sub,.auth-panel .caption,.auth-panel .muted,.auth-panel .hint,.auth-panel small{color:rgba(255,255,255,.74);}
+.auth-panel input,.auth-panel select,.auth-panel textarea{background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.26); color:#fff; border-radius:11px;}
+.auth-panel input::placeholder,.auth-panel textarea::placeholder{color:rgba(255,255,255,.55);}
+.auth-panel input:focus,.auth-panel select:focus,.auth-panel textarea:focus{border-color:rgba(255,255,255,.58); background:rgba(255,255,255,.16); outline:none; box-shadow:0 0 0 3px rgba(255,255,255,.12);}
+.auth-panel select option{color:#0B2036;}
+.auth-panel .btn-quiet{background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.24); color:#fff;}
+.auth-panel a{color:#7FE3DF;}
+.auth-panel .auth-welcome-quote{color:#7FE3DF;}
+.auth-panel .auth-password-hint{color:rgba(255,255,255,.76);}
 .auth-logo{width:76px; height:76px; border-radius:18px; background:#fff; border:3px solid rgba(14,165,160,.38); color:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:32px; margin:0 auto 12px;}
 .auth-logo img{width:100%;height:100%;object-fit:cover;display:block;}
 .logo.icon-fallback,.auth-logo.icon-fallback{background:linear-gradient(135deg,var(--accent),var(--teal));color:#fff;display:flex;align-items:center;justify-content:center;}
@@ -278,7 +290,7 @@ html[dir="rtl"] .records-table tbody tr.row-working td:first-child{box-shadow:in
 .auth-password-hint{text-align:center;color:var(--muted);font-size:12.5px;line-height:1.65;margin:-2px auto 14px;max-width:340px;}
 @media (max-width:600px){
   .auth-screen{min-height:calc(100vh - 148px);padding:18px 10px;background-position:center center;}
-  .auth-box{max-width:430px;padding:18px 14px 16px;border-radius:16px;}
+  .auth-panel{max-width:430px;padding:20px 16px 18px;border-radius:18px;}
   .auth-logo{width:68px;height:68px;margin-bottom:9px;}
   .auth-title{font-size:19px;}
   .auth-welcome-quote{font-size:12px;margin-bottom:9px;}

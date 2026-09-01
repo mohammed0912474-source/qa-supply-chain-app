@@ -675,7 +675,7 @@ function renderAuthGate(){
     </div>
     <div class="tagline-strip">${LANG==='ar'?'عمليات الجودة وسلسلة الإمداد':'Quality & Supply Chain Operations'}</div>
   </div>
-  <div class="container"><div class="auth-screen" style="background-image:url('${AUTH_HEROES[getAuthHeroIndex()]}');"><div class="auth-box">${inner}</div></div></div>`;
+  <div class="container"><div class="auth-screen" style="background-image:url('${AUTH_HEROES[getAuthHeroIndex()]}');"><div class="auth-panel">${inner}</div></div></div>`;
 }
 
 function getDeviceKnownUserIds(){ return Store.get('qa_deviceKnownUsers', []); }
