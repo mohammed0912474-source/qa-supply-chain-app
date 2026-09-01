@@ -547,13 +547,18 @@ const BUILTIN_SECTIONS = [
         options:[SEL('from_container','From Container','From Container'), SEL('handling','During Handling','During Handling'), SEL('other','أخرى','Other')]},
       {key:'productView', type:'image', label:{ar:'صورة المنتج (Product View)', en:'Product View'}},
       {key:'issuePhoto', type:'image', label:{ar:'توثيق مشكلة المنتج (إن وُجدت)', en:'Product Issue Documentation (if any)'}},
-      {key:'totalNC', type:'number', label:{ar:'إجمالي Total NC', en:'Total NC'}},
+      {key:'totalNC', type:'number', label:{ar:'إجمالي Total NC (تلقائي)', en:'Total NC (auto)'}},
       {key:'ncReason', type:'textarea', label:{ar:'سبب/توضيح الـ NC', en:'NC Reason'}},
-      {key:'ncTreated', type:'number', label:{ar:'الكمية المعاد توجيهها (Readressed)', en:'Readressed'}},
-      {key:'totalLoss', type:'number', label:{ar:'إجمالي الفاقد (Total Loss)', en:'Total Loss'}},
-      {key:'ncTreatedPercent', type:'computed', label:{ar:'نسبة المعالجة للـ NC (Readressed %)', en:'NC Resolved Rate (Readressed %)'},
-        compute:(r)=> pct(r.ncTreated, r.totalNC)},
-      {key:'lossPercentOfBillQty', type:'computed', label:{ar:'نسبة الفاقد (Loss) في البوليصة بعد المعالجة', en:'Loss % of Bill Quantity (after treatment)'},
+      /* كان هنا حقل يدوي منفصل (ncTreated) للمعالج بجانب الإجمالي التلقائي
+         (totalReback)، فينتج رقمان مختلفان للمعالج في نفس التطبيق. الآن مصدر
+         واحد: بند المعالجة المخصص في السجل، محسوب تلقائياً من تفاصيل الحاويات. */
+      {key:'totalReback', type:'number', label:{ar:'إجمالي المعالج Re-addressed (تلقائي)', en:'Total Re-addressed (auto)'}},
+      {key:'totalLoss', type:'number', label:{ar:'إجمالي الفاقد Total Loss (تلقائي)', en:'Total Loss (auto)'}},
+      {key:'ncTreatedPercent', type:'computed', label:{ar:'نسبة المعالجة من NC (Re-addressed %)', en:'Re-addressed % of NC'},
+        compute:(r)=> pct(r.totalReback, r.totalNC)},
+      {key:'lossPercentOfNC', type:'computed', label:{ar:'نسبة الفاقد من NC (Loss of NC %)', en:'Loss % of NC'},
+        compute:(r)=> pct(r.totalLoss, r.totalNC)},
+      {key:'lossPercentOfBillQty', type:'computed', label:{ar:'نسبة الفاقد الكلية في البوليصة', en:'Total Loss % of Bill Quantity'},
         compute:(r)=> pct(r.totalLoss, r.billQty)},
       {key:'note', type:'textarea', label:{ar:'NOTE - ملاحظات عامة', en:'NOTE - General'}},
       {key:'images', type:'image', label:{ar:'صور البوليصة', en:'Bill Images'}}
