@@ -46,16 +46,22 @@ function computeContainerAgg(records){
   
   let totalNC=0, totalTreated=0, totalBillQty=0, totalContainers=0, totalLoss=0, totalReback=0;
   const conditionTally={};
-  const ncTypeTally={from_container:0, handling:0, other:0};
+  /* مفتوح لأي نوع NC جديد — القائمة الثابتة السابقة كانت تُسقط أي نوع خارجها. */
+  const ncTypeTally={};
   
   completedRecords.forEach(r=>{
     totalNC += metricOf(r,'totalNC','nc');
-    totalTreated += parseFloat(r.ncTreated)||0;
+    /* المعالج يُقرأ من بند المعالجة المخصص في السجل. كان يقرأ حقلاً يدوياً
+       منفصلاً (ncTreated) بينما البطاقات تقرأ totalReback، فينتج رقمان مختلفان
+       للمعالج في نفس اللوحة — وهو سبب عدم تطابق الأرقام. */
+    totalTreated += metricOf(r,'totalReback','reback');
     totalBillQty += metricOf(r,'billQty','qty');
     totalContainers += parseContainerCount(r);
     totalLoss += metricOf(r,'totalLoss','loss');
     totalReback += metricOf(r,'totalReback','reback');
-    if(r.ncType) ncTypeTally[r.ncType] = (ncTypeTally[r.ncType]||0) + 1;
+    /* توزيع نوع NC بالكميات لا بعدد السجلات — سجل واحد بكمية كبيرة كان يُحسب
+       مثل سجل بكمية صغيرة تماماً. */
+    if(r.ncType) ncTypeTally[r.ncType] = (ncTypeTally[r.ncType]||0) + metricOf(r,'totalNC','nc');
     (r.containerDetails||[]).forEach(cd=>{ if(cd.condition){ const normalized=['damaged','repair'].includes(cd.condition)?'bad':cd.condition; conditionTally[normalized]=(conditionTally[normalized]||0)+1; } });
   });
   
@@ -68,8 +74,11 @@ function computeContainerAgg(records){
     workingCount: records.length - completedRecords.length,
     // Derived rates. pct() returns null on a zero/invalid denominator, which the
     // KPI renderer shows as "—" rather than a misleading 0%.
+    /* الأساس الموحّد: المعالج والفاقد كلاهما يُنسب إلى إجمالي NC.
+       كان الفاقد يُقسم على المعالج، فتظهر نسبة قد تتجاوز 100% وتناقض بقية اللوحة. */
     readdressedPct: pct(totalReback, totalNC),
-    loseOfReaddressedPct: pct(totalLoss, totalReback),
+    lossOfNcPct: pct(totalLoss, totalNC),
+    loseOfReaddressedPct: pct(totalLoss, totalNC),
     totalLossPct: pct(totalLoss, totalBillQty)
   };
 }
@@ -103,8 +112,16 @@ function computeRebackAgg(records){
   const ncQty = sumField(completedRecords,'mergeQty');
   const processedQty = sumField(completedRecords,'processedQty');
   const damagedQty = sumField(completedRecords,'damagedQty');
+  /* تحليل نوع NC لهذا القسم يُبنى من حقل "نوع NC" داخل سجلات القسم نفسه
+     وبالكميات — كان يُعرض من سجلات قسم البوليصة وبعدد السجلات. */
+  const ncTypeTally = {};
+  completedRecords.forEach(r=>{
+    const raw = String(r.mergeType||'').trim();
+    const key = raw || '__unspecified__';
+    ncTypeTally[key] = (ncTypeTally[key]||0) + (parseFloat(r.mergeQty)||0);
+  });
   return {
-    ncQty, processedQty, damagedQty,
+    ncQty, processedQty, damagedQty, ncTypeTally,
     count: completedRecords.length,
     allCount: records.length,
     workingCount: records.length - completedRecords.length,
@@ -221,11 +238,21 @@ function renderDashboard(){
   const basisNote = LANG==='ar'
     ? `تُحتسب كل المؤشرات من العمليات المنتهية فقط${excludedCount?` — تم استبعاد ${excludedCount} عملية قيد العمل`:''}.`
     : `All indicators are calculated from completed operations only${excludedCount?` — ${excludedCount} in-progress operation(s) excluded`:''}.`;
-  const ncTypeParts = [
-    {label:'From Container', value:cAgg.ncTypeTally.from_container, color:'var(--accent)'},
-    {label:'During Handling', value:cAgg.ncTypeTally.handling, color:'var(--gold)'},
-    {label:LANG==='ar'?'أخرى':'Other', value:cAgg.ncTypeTally.other, color:'var(--teal)'}
-  ].filter(p=>p.value>0);
+  const NC_TYPE_COLORS = ['var(--accent)','var(--gold)','var(--teal)','#B48EF2','#F2925C','#5CC9F2'];
+  /* لوحة معالجة المنتجات تعرض أنواع NC الخاصة بسجلاتها هي، لا أنواع قسم البوليصة. */
+  const ncTypeParts = Object.keys(rAgg.ncTypeTally||{})
+    .map((k,i)=>({
+      label: k==='__unspecified__' ? (LANG==='ar'?'غير محدد':'Unspecified') : k,
+      value: rAgg.ncTypeTally[k],
+      color: NC_TYPE_COLORS[i % NC_TYPE_COLORS.length]
+    }))
+    .filter(p=>p.value>0)
+    .sort((a,b)=>b.value-a.value);
+  const containerNcTypeLabels = {from_container:{ar:'من الحاوية',en:'From Container'},handling:{ar:'أثناء المناولة',en:'During Handling'},other:{ar:'أخرى',en:'Other'}};
+  const containerNcTypeParts = Object.keys(cAgg.ncTypeTally||{})
+    .map((k,i)=>({label:t(containerNcTypeLabels[k]||{ar:k,en:k}), value:cAgg.ncTypeTally[k], color:NC_TYPE_COLORS[i % NC_TYPE_COLORS.length]}))
+    .filter(p=>p.value>0)
+    .sort((a,b)=>b.value-a.value);
   const transportTally = {};
   completedOnly(containers).forEach(r=>{ const k=r.transportMethod||'unknown'; transportTally[k]=(transportTally[k]||0)+1; });
   const transportLabels = {air:{ar:'عبر المطار',en:'By Air'},sea:{ar:'عبر الميناء',en:'By Sea/Port'},road:{ar:'عبر الطريق',en:'By Road'},unknown:{ar:'غير محدد',en:'Not specified'}};
@@ -244,11 +271,11 @@ function renderDashboard(){
     {label:LANG==='ar'?'المعالج (Re-addressed)':'Re-addressed',value:cAgg.totalReback,tone:'good'},
     {label:LANG==='ar'?'الفاقد (Total Lose)':'Total Lose',value:cAgg.totalLoss,tone:cAgg.totalLoss?'bad':'good'},
     {label:LANG==='ar'?'نسبة المعالجة':'Re-addressed %',value:cAgg.readdressedPct,suffix:'%',formula:'Re-addressed ÷ NC',tone:cAgg.readdressedPct==null?'neutral':cAgg.readdressedPct>=80?'good':cAgg.readdressedPct>=50?'warn':'bad'},
-    {label:LANG==='ar'?'نسبة فاقد المعالجة':'Lose of Re-addressed %',value:cAgg.loseOfReaddressedPct,suffix:'%',formula:'Lose ÷ Re-addressed',tone:cAgg.loseOfReaddressedPct==null?'neutral':cAgg.loseOfReaddressedPct<=5?'good':cAgg.loseOfReaddressedPct<=15?'warn':'bad'},
+    {label:LANG==='ar'?'نسبة الفاقد من NC':'Loss % of NC',value:cAgg.lossOfNcPct,suffix:'%',formula:'Total Lose ÷ Total NC',tone:cAgg.lossOfNcPct==null?'neutral':cAgg.lossOfNcPct<=5?'good':cAgg.lossOfNcPct<=15?'warn':'bad'},
     {label:LANG==='ar'?'نسبة الفاقد الكلية في الشحنات':'Total Lose in Shipments %',value:cAgg.totalLossPct,suffix:'%',formula:'Total Lose ÷ Quantities',tone:cAgg.totalLossPct==null?'neutral':cAgg.totalLossPct<=2?'good':cAgg.totalLossPct<=5?'warn':'bad'}
-  ],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:'')}
+  ],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',`<div class="grid-2">${transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:''}${containerNcTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC في البواليص (بالكميات)':'Bill NC Types (by quantity)'}</h4>${renderDonut(containerNcTypeParts)}</div>`:''}</div>`)}
   ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.total},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:tAgg.transporters}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div>`)}
-  ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rAgg.count},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'},{label:LANG==='ar'?'نسبة الفاقد':'Loss Rate',value:rebackLossRate,suffix:'%',tone:rebackLossRate<=2?'good':'warn'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>${ncTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC':'NC Types'}</h4>${renderDonut(ncTypeParts)}</div>`:''}</div>`)}
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rAgg.count},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'},{label:LANG==='ar'?'نسبة الفاقد':'Loss Rate',value:rebackLossRate,suffix:'%',tone:rebackLossRate<=2?'good':'warn'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>${ncTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC (بالكميات)':'NC Types (by quantity)'}</h4>${renderDonut(ncTypeParts)}</div>`:''}</div>`)}
   <div class="card chart-card"><div class="section-title"><h3 style="margin:0;">${LANG==='ar'?'الاتجاه العام للفاقد وNC':'Overall NC & Loss Trend'}</h3></div>${renderBarChart(trendData('totalNC',state.dashboardTrendMonths||6),'var(--accent)')}</div>`;
 }
 
