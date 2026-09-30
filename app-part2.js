@@ -23,14 +23,17 @@ function renderHome(){
   const user = getCurrentUser();
   const totalRecords = sections.reduce((sum,s)=>sum+getRecords(s.id).length,0);
   const currentPrefix = todayISO().slice(0,7);
-  const monthRecords = sections.reduce((sum,s)=>sum+getRecords(s.id).filter(r=>(r.date||'').startsWith(currentPrefix)).length,0);
-  const recent = sections.flatMap(s=>getRecords(s.id).map(r=>({section:s,record:r}))).sort((a,b)=>`${b.record.date||''}${b.record._created||''}`.localeCompare(`${a.record.date||''}${a.record._created||''}`)).slice(0,5);
+  const monthRecords = sections.reduce((sum,s)=>sum+getRecords(s.id).filter(r=>recordMonthKey(r)===currentPrefix).length,0);
+  const recent = sections.flatMap(s=>getRecords(s.id).map(r=>({section:s,record:r}))).sort((a,b)=>compareNewest(a.record,b.record)).slice(0,5);
   const WORKSPACE_IMAGES = {containers:'containers.jpg',trucks:'trucks.jpg',rebacking:'rebacking.jpg'};
   const sectionCards = sections.map(s=>{
-    const count=getRecords(s.id).length;
+    const monthRecs=getRecords(s.id).filter(r=>recordMonthKey(r)===currentPrefix);
+    const count=monthRecs.length;
+    const doneCount=monthRecs.filter(isCompleted).length;
+    const workingCount=count-doneCount;
     const caption=s.id==='containers'?(LANG==='ar'?'متابعة البوالص وحالة التوزيع':'Bills of lading and dispatch readiness'):s.id==='trucks'?(LANG==='ar'?'فحص المركبات والمنتجات المحمّلة':'Vehicle and loaded-product inspection'):(LANG==='ar'?'تسجيل المعالجة والكميات والتالف':'Processing, quantities, and damage');
     const visual = WORKSPACE_IMAGES[s.id];
-    return `<article class="section-overview-card${visual?' section-overview-card--visual':''}">${visual?`<div class="section-card-photo" style="background-image:url('${visual}')"></div>`:''}<div class="section-card-overlay"><div class="section-overview-top"><div class="section-overview-icon">${SECTION_ICONS[s.id]||s.icon}</div><div class="section-overview-count">${count}<span>${LANG==='ar'?'سجل':'records'}</span></div></div><h4>${esc(t(s.name))}</h4><div class="caption">${caption}</div><div class="section-overview-actions"><button class="btn btn-quiet btn-sm" data-action="nav" data-view="list" data-section="${s.id}">${LANG==='ar'?'فتح السجل':'Open register'}</button><button class="btn btn-primary btn-sm" data-action="new-record" data-section="${s.id}">${LANG==='ar'?'سجل جديد':'New'}</button></div></div></article>`;
+    return `<article class="section-overview-card${visual?' section-overview-card--visual':''}">${visual?`<div class="section-card-photo" style="background-image:url('${visual}')"></div>`:''}<div class="section-card-overlay"><div class="section-overview-top"><div class="section-overview-icon">${SECTION_ICONS[s.id]||s.icon}</div><div class="section-overview-count">${count}<span>${LANG==='ar'?'عملية هذا الشهر':'this month'}</span></div></div><div class="section-card-status"><span class="status-pill completed"><span class="work-dot"></span>${doneCount} ${LANG==='ar'?'منتهية':'done'}</span><span class="status-pill working"><span class="work-dot"></span>${workingCount} ${LANG==='ar'?'قيد العمل':'in progress'}</span></div><h4>${esc(t(s.name))}</h4><div class="caption">${caption}</div><div class="section-overview-actions"><button class="btn btn-quiet btn-sm" data-action="nav" data-view="list" data-section="${s.id}">${LANG==='ar'?'فتح السجل':'Open register'}</button><button class="btn btn-primary btn-sm" data-action="new-record" data-section="${s.id}">${LANG==='ar'?'سجل جديد':'New'}</button></div></div></article>`;
   }).join('');
   const recentRows = recent.map(item=>{
     const title=item.section.id==='containers'?item.record.blNumber:item.section.id==='trucks'?item.record.truckNo:(item.record.blNumber||item.record.product);
@@ -140,7 +143,7 @@ function trendData(metricKey, months){
   const allContainers = completedOnly(getRecords('containers'));
   const detailKey = {totalNC:'nc', totalLoss:'loss', totalReback:'reback', billQty:'qty'}[metricKey];
   return monthsArr.map(m=>{
-    const recs = allContainers.filter(r=>r.date && r.date.startsWith(m.key));
+    const recs = allContainers.filter(r=>recordMonthKey(r)===m.key);
     const sum = recs.reduce((a,r)=>a+(detailKey?metricOf(r,metricKey,detailKey):(parseFloat(r[metricKey])||0)),0);
     return {label:`${m.month}/${String(m.year).slice(2)}`, value:Math.round(sum*100)/100};
   });
@@ -218,7 +221,7 @@ function renderSectionKpiPanel(title, subtitle, kpis, note, chart){
 function renderDashboard(){
   const period = state.dashboardPeriod;
   const prefix = period==='month' ? `${state.monthly.year}-${String(state.monthly.month).padStart(2,'0')}` : '';
-  const byPeriod = records => period==='month' ? records.filter(r=>String(r.date||'').startsWith(prefix)) : records;
+  const byPeriod = records => period==='month' ? records.filter(r=>recordMonthKey(r)===prefix) : records;
   const containers = byPeriod(getRecords('containers'));
   const trucks = byPeriod(getRecords('trucks'));
   const rebacking = byPeriod(getRecords('rebacking'));
@@ -283,7 +286,7 @@ function renderDashboard(){
 function filterDefaults(sectionId){
   if(sectionId==='containers') return {blNumber:''};
   if(sectionId==='trucks') return {truckNo:'',product:''};
-  if(sectionId==='rebacking') return {product:'',month:''};
+  if(sectionId==='rebacking') return {product:''};
   return {query:''};
 }
 function getSectionFilters(sectionId){
@@ -320,14 +323,44 @@ function recordMatchesSectionFilters(sectionId, record){
   }
   if(sectionId==='rebacking'){
     if(filters.product && !productSearchText(record).includes(normalizedText(filters.product))) return false;
-    if(filters.month && (!record.date || !record.date.startsWith(filters.month))) return false;
     return true;
   }
   if(filters.query && !normalizedText(JSON.stringify(record)).includes(normalizedText(filters.query))) return false;
   return true;
 }
 function getFilteredRecords(sectionId){
-  return getRecords(sectionId).filter(record=>recordMatchesSectionFilters(sectionId, record)).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b._created||'').localeCompare(a._created||''));
+  /* The register shows one month at a time (current month by default).
+     A text search spans every month, so an older BL / truck is still findable. */
+  const month = getListMonth(sectionId);
+  const searching = hasActiveSectionFilters(sectionId);
+  return getRecords(sectionId)
+    .filter(record=> searching || month==='all' || recordMonthKey(record)===month)
+    .filter(record=>recordMatchesSectionFilters(sectionId, record))
+    .slice().sort(compareNewest);
+}
+function getListMonth(sectionId){ return (state.listMonth||{})[sectionId] || currentMonthKey(); }
+function listMonthOptions(sectionId){
+  const counts = {};
+  getRecords(sectionId).forEach(r=>{ const k=recordMonthKey(r); if(k) counts[k]=(counts[k]||0)+1; });
+  const cur = currentMonthKey(); if(!counts[cur]) counts[cur]=0;
+  const sel = getListMonth(sectionId); if(sel!=='all' && counts[sel]==null) counts[sel]=0;
+  return Object.keys(counts).sort().reverse().map(k=>({key:k, count:counts[k]}));
+}
+function renderMonthBar(sectionId){
+  const sel = getListMonth(sectionId);
+  const opts = listMonthOptions(sectionId);
+  const total = getRecords(sectionId).length;
+  const options = opts.map(o=>`<option value="${o.key}" ${o.key===sel?'selected':''}>${esc(monthLabel(o.key))} (${o.count})</option>`).join('')
+    + `<option value="all" ${sel==='all'?'selected':''}>${esc(monthLabel('all'))} (${total})</option>`;
+  const prevLbl = LANG==='ar'?'الشهر السابق':'Previous month';
+  const nextLbl = LANG==='ar'?'الشهر التالي':'Next month';
+  const disabled = sel==='all' ? 'disabled' : '';
+  return `<div class="month-bar" data-month-bar="${sectionId}"><button type="button" class="month-step" data-action="list-month-step" data-section="${sectionId}" data-step="-1" title="${prevLbl}" aria-label="${prevLbl}" ${disabled}>${LANG==='ar'?'›':'‹'}</button><select class="month-select" data-action="list-month" data-section="${sectionId}" aria-label="${LANG==='ar'?'اختر الشهر':'Choose month'}">${options}</select><button type="button" class="month-step" data-action="list-month-step" data-section="${sectionId}" data-step="1" title="${nextLbl}" aria-label="${nextLbl}" ${disabled}>${LANG==='ar'?'‹':'›'}</button><span class="month-bar-note" data-month-note="${sectionId}" style="display:${hasActiveSectionFilters(sectionId)?'':'none'}">${LANG==='ar'?'البحث يشمل كل الشهور':'Search covers all months'}</span></div>`;
+}
+function monthStatusSummary(records){
+  const done = records.filter(isCompleted).length;
+  const working = records.length - done;
+  return `<span class="status-pill completed"><span class="work-dot"></span>${done} ${LANG==='ar'?'منتهية':'completed'}</span><span class="status-pill working"><span class="work-dot"></span>${working} ${LANG==='ar'?'قيد العمل':'in progress'}</span>`;
 }
 function statusMeta(section, record){
   const key = section.id==='containers' ? 'readyForDispatch' : section.id==='trucks' ? 'inspectionResult' : '';
@@ -337,7 +370,7 @@ function statusMeta(section, record){
   return {label:label || (LANG==='ar'?'غير محدد':'Not set'), tone};
 }
 function filteredRecordsMarkup(section, records){
-  return records.length ? renderRecordTable(section,records) : `<div class="empty-state"><div class="ico">—</div>${LANG==='ar'?'لا توجد سجلات مطابقة للبحث الحالي':'No records match the current search'}</div>`;
+  return records.length ? renderRecordTable(section,records) : `<div class="empty-state"><div class="ico">—</div>${hasActiveSectionFilters(section.id)?(LANG==='ar'?'لا توجد سجلات مطابقة للبحث الحالي':'No records match the current search'):(LANG==='ar'?'لا توجد عمليات في هذا الشهر':'No operations in this month')}</div>`;
 }
 function refreshSectionFilterPreview(sectionId){
   const section = getSection(sectionId); if(!section) return;
@@ -346,6 +379,10 @@ function refreshSectionFilterPreview(sectionId){
   if(metric){ metric.style.display = active ? '' : 'none'; const value=metric.querySelector('[data-filter-count]'); if(value) value.textContent=records.length; }
   const panelTitle = document.querySelector(`[data-record-panel-title="${sectionId}"]`);
   if(panelTitle) panelTitle.textContent = active ? (LANG==='ar'?'نتائج الفلترة':'Filtered records') : (LANG==='ar'?'سجل العمليات':'Operations register');
+  const summary = document.querySelector(`[data-month-summary="${sectionId}"]`);
+  if(summary) summary.innerHTML = monthStatusSummary(records);
+  const note = document.querySelector(`[data-month-note="${sectionId}"]`);
+  if(note) note.style.display = active ? '' : 'none';
   const display = document.querySelector(`[data-records-display="${sectionId}"]`);
   if(display) display.innerHTML = filteredRecordsMarkup(section,records);
   const resultCount = document.querySelector(`[data-filter-result-count="${sectionId}"]`);
@@ -434,7 +471,7 @@ function renderSectionFilters(section){
     ${filterField(LANG==='ar'?'رقم العربة':'Vehicle number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم العربة':'Search vehicle'}" value="${esc(filters.truckNo)}" data-section-filter="${section.id}" data-filter-key="truckNo">`)}
     ${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}
   </div>`;
-  if(section.id==='rebacking') return `<div class="filter-grid">${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}${filterField(LANG==='ar'?'الشهر':'Month',`<input type="text" inputmode="numeric" placeholder="YYYY-MM" value="${esc(filters.month)}" data-section-filter="${section.id}" data-filter-key="month">`)}</div>`;
+  if(section.id==='rebacking') return `<div class="filter-grid">${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}</div>`;
   return `<div class="filter-grid">${filterField(LANG==='ar'?'بحث داخل السجلات':'Search records',`<input type="text" autocomplete="off" placeholder="${esc(t(STR.search))}" value="${esc(filters.query)}" data-section-filter="${section.id}" data-filter-key="query">`)}</div>`;
 }
 function renderList(sectionId){
@@ -444,7 +481,7 @@ function renderList(sectionId){
   return `<div class="operations-shell"><section class="workspace-header"><div><div class="workspace-kicker">${LANG==='ar'?'سجل العمليات':'OPERATIONS REGISTER'}</div><h1 class="workspace-title">${esc(t(section.name))}</h1><p class="workspace-description">${description}</p></div><button class="btn btn-primary" data-action="new-record" data-section="${sectionId}">${LANG==='ar'?'سجل عملية جديدة':'New record'}</button></section>
     <section class="workspace-metrics"><div class="workspace-metric"><span class="value">${allRecords.length}</span><span class="label">${LANG==='ar'?'إجمالي السجلات':'Total records'}</span></div><div class="workspace-metric" data-filter-metric="${sectionId}" style="display:${filtersActive?'':'none'}"><span class="value" data-filter-count>${records.length}</span><span class="label">${LANG==='ar'?'نتائج الفلترة':'Filtered records'}</span></div></section>
     <section class="filter-panel"><div class="filter-panel-head"><div><h2 class="filter-panel-title">${LANG==='ar'?'بحث':'Search'}</h2><div class="filter-panel-note">${LANG==='ar'?'التصدير يعكس النتائج الظاهرة فقط.':'Exports include visible results only.'}</div></div></div>${renderSectionFilters(section)}<div class="filter-footer"><div class="filter-results" style="display:${filtersActive?'':'none'}"><b data-filter-result-count="${sectionId}">${records.length}</b> ${LANG==='ar'?'سجل مطابق':'matching records'}</div><div class="filter-actions"><button class="btn btn-quiet btn-sm" data-action="clear-section-filters" data-section="${sectionId}">${LANG==='ar'?'مسح البحث':'Clear search'}</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-csv" data-section="${sectionId}">CSV</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-xlsx" data-section="${sectionId}">Excel</button><button class="btn btn-primary btn-sm" data-action="share-filtered-pdf" data-section="${sectionId}">PDF</button></div></div></section>
-    <section class="records-panel"><div class="records-panel-head"><div><div class="records-panel-title" data-record-panel-title="${sectionId}">${filtersActive?(LANG==='ar'?'نتائج الفلترة':'Filtered records'):(LANG==='ar'?'سجل العمليات':'Operations register')}</div><div class="records-panel-sub">${LANG==='ar'?'يدعم السجل عددًا كبيرًا من العمليات ويعرض الأحدث أولًا.':'The register supports a large number of operations and shows newest records first.'}</div></div></div><div data-records-display="${sectionId}">${filteredRecordsMarkup(section,records)}</div></section></div>`;
+    <section class="records-panel"><div class="records-panel-head"><div><div class="records-panel-title" data-record-panel-title="${sectionId}">${filtersActive?(LANG==='ar'?'نتائج الفلترة':'Filtered records'):(LANG==='ar'?'سجل العمليات':'Operations register')}</div><div class="records-panel-sub" data-month-summary="${sectionId}">${monthStatusSummary(records)}</div></div>${renderMonthBar(sectionId)}</div><div data-records-display="${sectionId}">${filteredRecordsMarkup(section,records)}</div></section></div>`;
 }
 
 /* ---- Form view ---- */
@@ -483,7 +520,7 @@ function renderField(f, record){
     return `<div class="field${full}">${label}<input type="text" inputmode="decimal" data-field="${f.key}" value="${esc(val!=null?val:'')}"></div>`;
   }
   if(f.type==='date'){
-    return `<div class="field${full}">${label}<input type="text" inputmode="text" autocomplete="off" placeholder="YYYY-MM-DD" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+    return `<div class="field${full}">${label}<input type="date" data-field="${f.key}" value="${esc(normalizeDateStr(val)||'')}"></div>`;
   }
   if(f.type==='textarea'){
     return `<div class="field${full}">${label}<textarea data-field="${f.key}">${esc(val||'')}</textarea></div>`;
@@ -644,7 +681,7 @@ function renderMonthly(){
   const monthStr = String(month).padStart(2,'0');
   const prefix = `${year}-${monthStr}`;
   const summaries = sections.map(s=>{
-    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
+    const recs = getRecords(s.id).filter(r=> recordMonthKey(r)===prefix);
     const numFields = s.fields.filter(f=>f.type==='number');
     const totals = numFields.map(f=>{
       const sum = recs.reduce((acc,r)=> acc + (parseFloat(r[f.key])||0), 0);

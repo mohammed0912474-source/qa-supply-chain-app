@@ -117,6 +117,7 @@ document.addEventListener('change', e=>{
   if(el.getAttribute('data-action')==='filter-to'){ state.dateTo = el.value; render(); }
   if(el.getAttribute('data-action')==='monthly-month'){ state.monthly.month = parseInt(el.value,10); render(); }
   if(el.getAttribute('data-action')==='monthly-year'){ state.monthly.year = parseInt(el.value,10); render(); }
+  if(el.getAttribute('data-action')==='list-month'){ state.listMonth[el.getAttribute('data-section')] = el.value; render(); }
   if(el.getAttribute('data-action')==='dashboard-trend-metric'){ state.dashboardTrendMetric = el.value; render(); }
   if(el.getAttribute('data-action')==='dashboard-trend-months'){ state.dashboardTrendMonths = parseInt(el.value,10); render(); }
 });
@@ -398,8 +399,13 @@ document.addEventListener('click', e=>{
     const view = el.getAttribute('data-view'); const section = el.getAttribute('data-section');
     if(view==='builder' && !isAdmin()){ showToast(t(STR.adminOnlyNotice)); return; }
     state.view = view; state.viewSectionId = section || null; state.search=''; state.dateFrom=''; state.dateTo='';
+    if(view==='list' && section) state.listMonth[section] = currentMonthKey();
     render();
     if(view==='files') refreshFilesCache();
+  }
+  else if(action==='list-month-step'){
+    const sid = el.getAttribute('data-section'); const cur = getListMonth(sid);
+    if(cur!=='all'){ state.listMonth[sid] = shiftMonthKey(cur, parseInt(el.getAttribute('data-step'),10)||0); render(); }
   }
   else if(action==='toggle-lang'){ LANG = LANG==='ar'?'en':'ar'; localStorage.setItem('qa_lang', LANG); render(); }
   else if(action==='open-account-modal'){ showAccountModal(); }
@@ -466,6 +472,8 @@ document.addEventListener('click', e=>{
   else if(action==='save-record'){
     const sectionId = el.getAttribute('data-section'); const section = getSection(sectionId);
     const rec = state.currentRecord;
+    /* Store dates in one canonical format so filters, sorting and analytics always match. */
+    if(rec && rec.date){ const iso = normalizeDateStr(rec.date); if(iso) rec.date = iso; }
     const missing = section.fields.filter(f=> f.required && (rec[f.key]===undefined || rec[f.key]===null || rec[f.key]===''));
     if(missing.length){ showToast(t(STR.requiredMissing)); return; }
     
@@ -535,11 +543,11 @@ document.addEventListener('click', e=>{
   else if(action==='export-xlsx'){ exportSectionXLSX(el.getAttribute('data-section')); }
   else if(action==='export-csv-month'){
     const {month,year}=state.monthly; const prefix = `${year}-${String(month).padStart(2,'0')}`;
-    const sectionId=el.getAttribute('data-section'); exportSectionCSV(sectionId, r=> r.date && r.date.startsWith(prefix), `${sectionId}_Monthly_${prefix}.csv`);
+    const sectionId=el.getAttribute('data-section'); exportSectionCSV(sectionId, r=> recordMonthKey(r)===prefix, `${sectionId}_Monthly_${prefix}.csv`);
   }
   else if(action==='export-xlsx-month'){
     const {month,year}=state.monthly; const prefix = `${year}-${String(month).padStart(2,'0')}`;
-    const sectionId=el.getAttribute('data-section'); exportSectionXLSX(sectionId, r=> r.date && r.date.startsWith(prefix), `${sectionId}_Monthly_${prefix}.xlsx`);
+    const sectionId=el.getAttribute('data-section'); exportSectionXLSX(sectionId, r=> recordMonthKey(r)===prefix, `${sectionId}_Monthly_${prefix}.xlsx`);
   }
   else if(action==='export-combined-month'){ exportCombinedMonth(); }
   else if(action==='export-combined-month-pdf'){ exportCombinedMonthPDF(); }
