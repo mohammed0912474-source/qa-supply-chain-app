@@ -105,7 +105,7 @@ async function uploadToImgBB(dataUrl, retryCount = 0){
     return null;
   }
 }
-const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, detailSectionId:null, detailRecord:null, search:'', dateFrom:'', dateTo:'', sectionFilters:{}, sectionFilterRenderTimer:null, builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', regTempBiometric:null, formTemp:{}, builtinFieldTarget:null, draftSaveTimer:null, draftRestored:false };
+const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, detailSectionId:null, detailRecord:null, search:'', dateFrom:'', dateTo:'', sectionFilters:{}, sectionFilterRenderTimer:null, builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', listMonth:{}, regTempBiometric:null, formTemp:{}, builtinFieldTarget:null, draftSaveTimer:null, draftRestored:false };
 
 const Store = {
   get(key, def){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }catch(e){ return def; } },
@@ -139,6 +139,45 @@ function clearFormDraft(sectionId){ try{ localStorage.removeItem(draftKey(sectio
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function t(o){ if(o==null) return ''; if(typeof o==='string') return o; return o[LANG] || o.ar || o.en || ''; }
 function todayISO(){ const d = new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+/* ===== Unified date handling =====
+   The date field was free text, so values like 30/9/2026, 2026/9/30 or Arabic
+   digits never matched the YYYY-MM prefix checks used by every filter, sort and
+   analytics view — which is why filtering by date returned nothing. Every date
+   comparison in the app now goes through these helpers. */
+function normalizeDateStr(v){
+  if(v==null || v==='') return '';
+  if(typeof v==='object' && v.seconds!=null){ const d=new Date(v.seconds*1000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  let s = String(v).trim()
+    .replace(/[\u0660-\u0669]/g, c=>String(c.charCodeAt(0)-0x0660))
+    .replace(/[\u06F0-\u06F9]/g, c=>String(c.charCodeAt(0)-0x06F0));
+  s = s.split('T')[0];
+  const parts = s.split(/[\/\-\.\s]+/).filter(Boolean);
+  if(parts.length!==3 || !parts.every(p=>/^\d+$/.test(p))) return '';
+  let y,m,d;
+  if(parts[0].length===4){ [y,m,d]=parts.map(Number); }
+  else { [d,m,y]=parts.map(Number); if(y<100) y+=2000; }
+  if(m<1||m>12||d<1||d>31||y<1990||y>2100) return '';
+  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function recordDateISO(r){ return normalizeDateStr(r && r.date); }
+function recordMonthKey(r){ const d=recordDateISO(r); return d ? d.slice(0,7) : ''; }
+function currentMonthKey(){ return todayISO().slice(0,7); }
+function createdKey(r){
+  const c = r && (r._created || r._updated);
+  if(c==null || c==='') return '';
+  if(typeof c==='number') return String(c).padStart(15,'0');
+  if(typeof c==='object' && c.seconds!=null) return String(c.seconds*1000).padStart(15,'0');
+  const ms = Date.parse(c); return isNaN(ms) ? String(c) : String(ms).padStart(15,'0');
+}
+/* Newest first: by operation date, then by creation time for same-day records. */
+function compareNewest(a,b){ return recordDateISO(b).localeCompare(recordDateISO(a)) || createdKey(b).localeCompare(createdKey(a)); }
+function monthLabel(key){
+  if(key==='all') return LANG==='ar'?'كل الشهور':'All months';
+  const [y,m] = key.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString(LANG==='ar'?'ar-u-nu-latn':'en-GB', {month:'long', year:'numeric'});
+}
+function shiftMonthKey(key, step){ const [y,m]=key.split('-').map(Number); const d=new Date(y, m-1+step, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function pct(part,total){ const p=parseFloat(part)||0; const tt=parseFloat(total)||0; if(tt<=0) return null; return p/tt*100; }
 
