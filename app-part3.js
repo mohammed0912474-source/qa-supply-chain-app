@@ -258,13 +258,13 @@ async function exportCombinedMonth(){
   const sections = getAllSections();
   const ok = await loadSheetJS();
   if(!ok || !window.XLSX){
-    sections.forEach(s=> exportSectionCSV(s.id, r=> r.date && r.date.startsWith(prefix)));
+    sections.forEach(s=> exportSectionCSV(s.id, r=> recordMonthKey(r)===prefix));
     showToast(t(STR.xlsxOfflineFallback));
     return;
   }
   const wb = XLSX.utils.book_new();
   const summaryRows = sections.map(s=>{
-    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
+    const recs = getRecords(s.id).filter(r=> recordMonthKey(r)===prefix);
     const numberFields = s.fields.filter(f=>f.type==='number');
     const totals = numberFields.map(f=>`${t(f.label)}: ${recs.reduce((a,r)=>a+(parseFloat(r[f.key])||0),0)}`).join(' | ');
     return { [LANG==='ar'?'القسم':'Section']:t(s.name), [LANG==='ar'?'عدد السجلات':'Records']:recs.length, [LANG==='ar'?'الإجماليات':'Totals']:totals||'—' };
@@ -274,7 +274,7 @@ async function exportCombinedMonth(){
   summary['!cols']=[{wch:28},{wch:14},{wch:60}]; summary['!freeze']={xSplit:0,ySplit:6}; summary['!autofilter']={ref:`A6:C${6+summaryRows.length}`}; summary['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}},{s:{r:1,c:0},e:{r:1,c:2}}];
   XLSX.utils.book_append_sheet(wb, summary, safeSheetName(LANG==='ar'?'ملخص شهري':'Monthly Summary','Summary'));
   sections.forEach(s=>{
-    const recs = getRecords(s.id).filter(r=> r.date && r.date.startsWith(prefix));
+    const recs = getRecords(s.id).filter(r=> recordMonthKey(r)===prefix);
     const flat = recs.map(r=> flattenRecordForExport(s, r));
     const ws = styleMonthlySheet(XLSX.utils.aoa_to_sheet([]), flat, `${t(s.name)} — ${prefix}`, prefix);
     XLSX.utils.book_append_sheet(wb, ws, safeSheetName(t(s.name), s.id));
@@ -292,7 +292,7 @@ async function exportCombinedMonthPDF(){
   const sections = getAllSections();
   const blocks = [];
   for(const section of sections){
-    const records = getRecords(section.id).filter(r=>r.date && r.date.startsWith(prefix));
+    const records = getRecords(section.id).filter(r=>recordMonthKey(r)===prefix);
     if(!records.length) continue;
     const imageMap = await buildImageMapForRecords(section, records).catch(()=>({}));
     blocks.push(`<div class="pf-sectiontitle">${esc(t(section.name))} <span>${records.length} ${LANG==='ar'?'سجل':'records'}</span></div>${records.map(r=>renderRecordPrintHtml(section,r,imageMap)).join('')}`);
@@ -631,7 +631,7 @@ async function shareRecordAsPDF(sectionId, recordId){
 
 async function shareDailyPDF(sectionId, dateStr){
   const section = getSection(sectionId);
-  const records = getRecords(sectionId).filter(r=>r.date===dateStr);
+  const records = getRecords(sectionId).filter(r=>recordDateISO(r)===normalizeDateStr(dateStr));
   await generateOrViewReport(records, section, `${t(section.name)} — ${LANG==='ar'?'تقرير يوم':'Daily report'} ${dateStr}`, `${section.id}_daily_${dateStr}.pdf`);
 }
 
@@ -645,7 +645,7 @@ async function shareFilteredPDF(sectionId){
 async function shareMonthlyPDF(sectionId, year, month){
   const section = getSection(sectionId);
   const prefix = `${year}-${String(month).padStart(2,'0')}`;
-  const records = getRecords(sectionId).filter(r=>r.date && r.date.startsWith(prefix));
+  const records = getRecords(sectionId).filter(r=>recordMonthKey(r)===prefix);
   await generateOrViewReport(records, section, `${t(section.name)} — ${LANG==='ar'?'تقرير شهر':'Monthly report'} ${month}/${year}`, `${section.id}_monthly_${prefix}.pdf`);
 }
 
