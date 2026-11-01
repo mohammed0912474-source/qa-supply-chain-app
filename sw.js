@@ -2,7 +2,7 @@
    إصلاح: كانت المسارات تشير إلى مجلد assets/ غير موجود، فكان cache.addAll يفشل بالكامل
    (فشل عنصر واحد يُسقط العملية كلها) والتطبيق لا يعمل دون اتصال إطلاقاً.
    الآن المسارات صحيحة من الجذر، والتخزين المبدئي مُحصَّن ضد فشل أي ملف مفرد. */
-const CACHE_NAME = 'qa-supply-chain-shell-v9';
+const CACHE_NAME = 'qa-supply-chain-shell-v10';
 const SHELL = [
   './',
   './index.html',
@@ -11,6 +11,11 @@ const SHELL = [
   './app-part2.js',
   './app-part3.js',
   './app-part4.js',
+  './firebase-init.js',
+  './pwa.js',
+  './fonts/cairo.css',
+  './fonts/cairo-arabic.woff2',
+  './fonts/cairo-latin.woff2',
   './app-icon-professional.png',
   './icon-192.png',
   './icon-512.png',
