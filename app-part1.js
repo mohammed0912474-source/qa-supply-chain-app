@@ -21,7 +21,14 @@ const SESSION_TAGLINE = WELCOME_TAGLINES[Math.floor(Math.random()*WELCOME_TAGLIN
 /* شعار مخصص (درع + علامة صح) بدل الإيموجي - متسق مع أيقونة التطبيق */
 const APP_ICON_URL = 'app-icon-professional.png';
 const AUTH_HEROES = ['login-bg-optimized.jpg','login-port-optimized.jpg','login-truck-optimized.jpg','login-processing-optimized.jpg','login-reporting-optimized.jpg'];
-const IMAGE_FALLBACK_ATTR = `onerror="this.remove();this.parentElement.classList.add('icon-fallback');"`;
+const IMAGE_FALLBACK_ATTR = 'data-icon-fallback';
+/* CSP-safe replacement for the old inline onerror handler. */
+document.addEventListener('error', e=>{
+  const img = e.target;
+  if(img && img.tagName==='IMG' && img.hasAttribute('data-icon-fallback')){
+    const parent = img.parentElement; img.remove(); if(parent) parent.classList.add('icon-fallback');
+  }
+}, true);
 const AUTH_WELCOME_MESSAGES = {
   ar:['الجودة تبدأ من معلومة موثقة.','كل سجل واضح يدعم قرارًا أفضل.','من الميدان إلى التقرير… نعمل بدقة.','سلامة المنتج مسؤولية تبدأ بالتفاصيل.'],
   en:['Quality starts with a documented fact.','Every clear record supports a better decision.','From field work to reporting — with precision.','Product safety begins with the details.']
@@ -931,7 +938,7 @@ function renderHeader(){
   const online = navigator.onLine;
   const user = getCurrentUser();
   return `
-  <div class="app-header">
+  <div class="app-header" role="banner">
     <div class="header-top">
       <div class="brand">
         <div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR} style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div>
