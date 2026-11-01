@@ -10,12 +10,12 @@ function renderTabbar(){
     {id:'files', view:'files', icon:NAV_ICONS.files, label:STR.filesTab},
     ...(isAdmin() ? [{id:'builder', view:'builder', icon:NAV_ICONS.builder, label:STR.builder}] : [])
   ];
-  return `<div class="tabbar">${items.map(it=>{
+  return `<nav class="tabbar" aria-label="${LANG==='ar'?'التنقل الرئيسي':'Main navigation'}">${items.map(it=>{
     const active = (state.view===it.view && (it.view!=='list' || state.viewSectionId===it.sectionId)) || (state.view==='form' && it.view==='list' && state.viewSectionId===it.sectionId);
     return `<button class="tab-btn ${active?'active':''}" data-action="nav" data-view="${it.view}" data-section="${it.sectionId||''}">
       <span class="ico">${it.icon}</span><span>${esc(t(it.label))}</span>
     </button>`;
-  }).join('')}</div>`;
+  }).join('')}</nav>`;
 }
 
 function renderHome(){
