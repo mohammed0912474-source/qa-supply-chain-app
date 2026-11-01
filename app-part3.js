@@ -668,7 +668,7 @@ function renderAuthGate(){
   else if(s==='findAccount') inner = renderFindAccountScreen();
   else if(s==='lock') inner = renderLockScreen();
   return `
-  <div class="app-header">
+  <div class="app-header" role="banner">
     <div class="header-top">
       <div class="brand"><div class="logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR} style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div><div class="titles"><h1>${esc(t(STR.appName))}</h1><div class="sub">QA Supply Chain</div></div></div>
       <div class="header-actions"><button class="icon-btn" data-action="toggle-lang" title="Lang">${LANG==='ar'?'EN':'ع'}</button></div>
@@ -698,7 +698,7 @@ function renderWelcomeScreen(){
     </button>`).join('');
   return `
   <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR}></div>
-  <div class="auth-title">${esc(t(STR.welcomeTitle))}</div>
+  <h2 class="auth-title">${esc(t(STR.welcomeTitle))}</h2>
   <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
   <div class="auth-sub">${esc(t(STR.welcomeSub))}</div>
   ${users.length? `<div class="hint" style="margin-bottom:8px;">${esc(t(STR.whoAreYou))}</div>${chips}`:''}
@@ -712,7 +712,7 @@ function renderWelcomeScreen(){
 
 function renderFindAccountScreen(){
   return `
-  <div class="auth-title">🔎 ${esc(t(STR.findAccountTitle))}</div>
+  <h2 class="auth-title">🔎 ${esc(t(STR.findAccountTitle))}</h2>
   <div class="auth-sub">${esc(t(STR.findAccountSub))}</div>
   <div class="field"><label>${esc(t(STR.name))}</label><input type="text" id="findAccountName" autocomplete="off" value="${esc(state.formTemp.findAccountName||'')}"></div>
   <button class="btn btn-primary btn-block" style="margin-top:14px;" data-action="auth-find-account">${esc(t(STR.continue))}</button>
@@ -721,7 +721,7 @@ function renderFindAccountScreen(){
 
 function renderAccessCodeScreen(){
   return `
-  <div class="auth-title">🔑 ${esc(t(STR.accessCodeTitle))}</div>
+  <h2 class="auth-title">🔑 ${esc(t(STR.accessCodeTitle))}</h2>
   <div class="auth-sub">${esc(t(STR.accessCodeSub))}</div>
   <div class="field"><label>${esc(t(STR.accessCodeLabel))}</label><input type="text" id="accessCodeInput" autocomplete="off" value="${esc(state.formTemp.accessCodeInput||'')}"></div>
   <button class="btn btn-primary btn-block" style="margin-top:14px;" data-action="auth-submit-accesscode">${esc(t(STR.continue))}</button>
@@ -731,7 +731,7 @@ function renderAccessCodeScreen(){
 function renderRegisterScreen(){
   const bio = state.regTempBiometric;
   return `
-  <div class="auth-title">📝 ${esc(t(STR.registerTitle))}</div>
+  <h2 class="auth-title">📝 ${esc(t(STR.registerTitle))}</h2>
   <div class="auth-sub">${esc(t(STR.registerSub))}</div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.name))}</label><input type="text" id="regName" value="${esc(state.formTemp.regName||'')}"></div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.role))}</label>
@@ -756,7 +756,7 @@ function renderRegisterScreen(){
 
 function renderAdminSetupScreen(){
   return `
-  <div class="auth-title">🛡️ ${esc(t(STR.adminSetupTitle))}</div>
+  <h2 class="auth-title">🛡️ ${esc(t(STR.adminSetupTitle))}</h2>
   <div class="auth-sub">${esc(t(STR.adminSetupSub))}</div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminPass" value="${esc(state.formTemp.adminPass||'')}"></div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.confirmPassword))}</label><input type="password" id="adminPass2" value="${esc(state.formTemp.adminPass2||'')}"></div>
@@ -766,7 +766,7 @@ function renderAdminSetupScreen(){
 
 function renderAdminLoginScreen(){
   return `
-  <div class="auth-title">🛡️ ${esc(t(STR.adminLoginTitle))}</div>
+  <h2 class="auth-title">🛡️ ${esc(t(STR.adminLoginTitle))}</h2>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.adminPasswordLabel))}</label><input type="password" id="adminLoginPass" value="${esc(state.formTemp.adminLoginPass||'')}"></div>
   <button class="btn btn-primary btn-block" data-action="auth-submit-adminlogin">${esc(t(STR.unlockBtn))}</button>
   <div style="text-align:center;margin-top:14px;"><button class="link-btn" data-action="auth-goto" data-screen="welcome">${esc(t(STR.cancel))}</button></div>`;
@@ -779,7 +779,7 @@ function renderLockScreen(){
   if(!user) return renderWelcomeScreen();
   return `
   <div class="auth-logo"><img src="${APP_ICON_URL}" alt="QA Supply Chain" ${IMAGE_FALLBACK_ATTR}></div>
-  <div class="auth-title">${esc(t(STR.lockWelcomeBack))}</div>
+  <h2 class="auth-title">${esc(t(STR.lockWelcomeBack))}</h2>
   <div class="auth-welcome-quote">${esc(getAuthWelcomeMessage())}</div>
   <div class="auth-sub">${esc(user.name)}</div>
   <div class="auth-password-hint">${esc(t(STR.lockPasswordHint))}</div>
