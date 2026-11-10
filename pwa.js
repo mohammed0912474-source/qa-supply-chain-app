@@ -8,7 +8,7 @@
   }
 })();
 
-const APP_VERSION = 'v9.0.0';
+const APP_VERSION = 'v11.0.0';
 if('serviceWorker' in navigator){
   /* Reload only when an already-controlled page receives a NEW service worker.
      On a first visit there is no previous controller, so we must not reload —
