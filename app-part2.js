@@ -49,6 +49,7 @@ function computeContainerAgg(records){
   
   let totalNC=0, totalTreated=0, totalBillQty=0, totalContainers=0, totalLoss=0, totalReback=0;
   const conditionTally={};
+  const shippingLineTally={};
   /* مفتوح لأي نوع NC جديد — القائمة الثابتة السابقة كانت تُسقط أي نوع خارجها. */
   const ncTypeTally={};
   
@@ -62,6 +63,8 @@ function computeContainerAgg(records){
     totalContainers += parseContainerCount(r);
     totalLoss += metricOf(r,'totalLoss','loss');
     totalReback += metricOf(r,'totalReback','reback');
+    const line = String(r.shippingLine||'').trim() || '__unspecified__';
+    shippingLineTally[line] = (shippingLineTally[line]||0) + 1;
     /* توزيع نوع NC بالكميات لا بعدد السجلات — سجل واحد بكمية كبيرة كان يُحسب
        مثل سجل بكمية صغيرة تماماً. */
     if(r.ncType) ncTypeTally[r.ncType] = (ncTypeTally[r.ncType]||0) + metricOf(r,'totalNC','nc');
@@ -70,7 +73,7 @@ function computeContainerAgg(records){
   
   return {
     totalNC, totalTreated, totalBillQty, totalContainers, totalLoss, totalReback,
-    conditionTally, ncTypeTally,
+    conditionTally, ncTypeTally, shippingLineTally,
     billsCount: completedRecords.length,
     count: completedRecords.length,
     allCount: records.length,
@@ -86,28 +89,26 @@ function computeContainerAgg(records){
   };
 }
 function computeTruckAgg(records){
-  // Analytics count completed operations only.
   const completedRecords = completedOnly(records);
   const total = completedRecords.length;
   const accepted = completedRecords.filter(r=>r.inspectionResult==='accepted').length;
   const rejected = completedRecords.filter(r=>r.inspectionResult==='rejected').length;
   const pending = total - accepted - rejected;
   let loadedQty = 0;
+  const operationTally = {}, rejectByTransporter = {}, rejectByLocation = {};
   completedRecords.forEach(r=>{
     const rows = asArray(r.products);
-    loadedQty += rows.length
-      ? rows.reduce((sum,row)=> sum + (parseFloat(row && row.qty)||0), 0)
-      : (parseFloat(r.qty)||0);
+    loadedQty += rows.length ? rows.reduce((sum,row)=>sum+(parseFloat(row&&row.qty)||0),0) : (parseFloat(r.qty)||0);
+    const op = String(r.operationType||'__unspecified__').trim();
+    operationTally[op] = (operationTally[op]||0) + 1;
+    if(r.inspectionResult==='rejected'){
+      const transporter = String(r.transporter||'__unspecified__').trim();
+      const location = String(r.location||r.destination||'__unspecified__').trim();
+      rejectByTransporter[transporter] = (rejectByTransporter[transporter]||0) + 1;
+      rejectByLocation[location] = (rejectByLocation[location]||0) + 1;
+    }
   });
-  return {
-    total, accepted, rejected, pending, loadedQty,
-    transporters: uniqueNonEmpty(completedRecords,'transporter'),
-    destinations: uniqueNonEmpty(completedRecords,'destination'),
-    acceptRate: pct(accepted, total),
-    rejectRate: pct(rejected, total),
-    allCount: records.length,
-    workingCount: records.length - total
-  };
+  return {total,accepted,rejected,pending,loadedQty,transporters:uniqueNonEmpty(completedRecords,'transporter'),destinations:uniqueNonEmpty(completedRecords,'destination'),operationTally,rejectByTransporter,rejectByLocation,acceptRate:pct(accepted,total),rejectRate:pct(rejected,total),allCount:records.length,workingCount:records.length-total};
 }
 /* Product-processing aggregate — completed operations only, same contract. */
 function computeRebackAgg(records){
@@ -159,6 +160,10 @@ function renderBarChart(items, color){
     </div>`;
   }).join('');
   return `<div style="display:flex;align-items:flex-end;height:150px;gap:6px;padding:6px 2px 0;">${bars}</div>`;
+}
+function renderTopTally(tally, labels, color){
+  const items = Object.keys(tally||{}).map(k=>({label:t(labels[k]||{ar:k,en:k}),value:tally[k]})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value).slice(0,6);
+  return items.length ? renderBarChart(items, color||'var(--accent)') : `<div class="empty-state">${LANG==='ar'?'لا توجد بيانات مكتملة':'No completed data'}</div>`;
 }
 function renderDonut(parts){
   const total = parts.reduce((a,p)=>a+p.value,0);
@@ -251,7 +256,7 @@ function renderDashboard(){
     }))
     .filter(p=>p.value>0)
     .sort((a,b)=>b.value-a.value);
-  const containerNcTypeLabels = {from_container:{ar:'من الحاوية',en:'From Container'},handling:{ar:'أثناء المناولة',en:'During Handling'},other:{ar:'أخرى',en:'Other'}};
+  const containerNcTypeLabels = {from_supplier:{ar:'من المورد',en:'From Supplier'},manual_handling:{ar:'مناولة يدوية',en:'Manual Handling'},forklift:{ar:'رافعة شوكية',en:'Forklift'},customs:{ar:'الجمارك',en:'Customs'},from_container:{ar:'من الحاوية',en:'From Container'},handling:{ar:'أثناء المناولة',en:'During Handling'},other:{ar:'أخرى',en:'Other'}};
   const containerNcTypeParts = Object.keys(cAgg.ncTypeTally||{})
     .map((k,i)=>({label:t(containerNcTypeLabels[k]||{ar:k,en:k}), value:cAgg.ncTypeTally[k], color:NC_TYPE_COLORS[i % NC_TYPE_COLORS.length]}))
     .filter(p=>p.value>0)
@@ -260,6 +265,10 @@ function renderDashboard(){
   completedOnly(containers).forEach(r=>{ const k=r.transportMethod||'unknown'; transportTally[k]=(transportTally[k]||0)+1; });
   const transportLabels = {air:{ar:'عبر المطار',en:'By Air'},sea:{ar:'عبر الميناء',en:'By Sea/Port'},road:{ar:'عبر الطريق',en:'By Road'},unknown:{ar:'غير محدد',en:'Not specified'}};
   const transportParts = Object.keys(transportTally).map(k=>({label:t(transportLabels[k]||{ar:k,en:k}),value:transportTally[k],color:k==='air'?'var(--accent)':k==='road'?'var(--gold)':'var(--teal)'}));
+  const shippingLineLabels = {}; Object.keys(cAgg.shippingLineTally||{}).forEach(k=>{shippingLineLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k};});
+  const operationLabels = {cross_loading:{ar:'Cross Loading',en:'Cross Loading'},off_loading:{ar:'Off Loading',en:'Off Loading'},__unspecified__:{ar:'غير محدد',en:'Not specified'}};
+  const rejectLabels = {}; Object.keys(tAgg.rejectByTransporter||{}).forEach(k=>{rejectLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k};});
+  const locationLabels = {}; Object.keys(tAgg.rejectByLocation||{}).forEach(k=>{locationLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k};});
   const truckParts = [{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,color:'var(--success)'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,color:'var(--danger)'}];
   const rebackParts = [{label:LANG==='ar'?'معالجة':'Processed',value:processedQty,color:'var(--success)'},{label:LANG==='ar'?'تالفة':'Damaged',value:damagedQty,color:'var(--danger)'}];
   const years=[]; const curY=new Date().getFullYear(); for(let y=curY-2;y<=curY+1;y++) years.push(y);
@@ -276,8 +285,8 @@ function renderDashboard(){
     {label:LANG==='ar'?'نسبة المعالجة':'Re-addressed %',value:cAgg.readdressedPct,suffix:'%',formula:'Re-addressed ÷ NC',tone:cAgg.readdressedPct==null?'neutral':cAgg.readdressedPct>=80?'good':cAgg.readdressedPct>=50?'warn':'bad'},
     {label:LANG==='ar'?'نسبة الفاقد من NC':'Loss % of NC',value:cAgg.lossOfNcPct,suffix:'%',formula:'Total Lose ÷ Total NC',tone:cAgg.lossOfNcPct==null?'neutral':cAgg.lossOfNcPct<=5?'good':cAgg.lossOfNcPct<=15?'warn':'bad'},
     {label:LANG==='ar'?'نسبة الفاقد الكلية في الشحنات':'Total Lose in Shipments %',value:cAgg.totalLossPct,suffix:'%',formula:'Total Lose ÷ Quantities',tone:cAgg.totalLossPct==null?'neutral':cAgg.totalLossPct<=2?'good':cAgg.totalLossPct<=5?'warn':'bad'}
-  ],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',`<div class="grid-2">${transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:''}${containerNcTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC في البواليص (بالكميات)':'Bill NC Types (by quantity)'}</h4>${renderDonut(containerNcTypeParts)}</div>`:''}</div>`)}
-  ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.total},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:tAgg.transporters}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div>`)}
+  ],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',`<div class="grid-2">${transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:''}${containerNcTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC في البواليص (بالكميات)':'Bill NC Types (by quantity)'}</h4>${renderDonut(containerNcTypeParts)}</div>`:''}<div class="chart-card"><h4>${LANG==='ar'?'الشحنات حسب Shipping Line':'Shipments by Shipping Line'}</h4>${renderTopTally(cAgg.shippingLineTally,shippingLineLabels,'var(--teal)')}</div></div>`)})
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.total},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:tAgg.transporters}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div><div class="chart-card"><h4>${LANG==='ar'?'نوع العملية':'Operation Type'}</h4>${renderTopTally(tAgg.operationTally,operationLabels,'var(--accent)')}</div><div class="chart-card"><h4>${LANG==='ar'?'أعلى الناقلين حسب الرفض':'Top Transporters by Reject'}</h4>${renderTopTally(tAgg.rejectByTransporter,rejectLabels,'var(--danger)')}</div><div class="chart-card"><h4>${LANG==='ar'?'أعلى المواقع حسب الرفض':'Top Locations by Reject'}</h4>${renderTopTally(tAgg.rejectByLocation,locationLabels,'var(--gold)')}</div></div>`)}
   ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rAgg.count},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'},{label:LANG==='ar'?'نسبة الفاقد':'Loss Rate',value:rebackLossRate,suffix:'%',tone:rebackLossRate<=2?'good':'warn'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>${ncTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC (بالكميات)':'NC Types (by quantity)'}</h4>${renderDonut(ncTypeParts)}</div>`:''}</div>`)}
   <div class="card chart-card"><div class="section-title"><h3 style="margin:0;">${LANG==='ar'?'الاتجاه العام للفاقد وNC':'Overall NC & Loss Trend'}</h3></div>${renderBarChart(trendData('totalNC',state.dashboardTrendMonths||6),'var(--accent)')}</div>`;
 }
@@ -285,7 +294,7 @@ function renderDashboard(){
 /* ---- Operations workspace helpers ---- */
 function filterDefaults(sectionId){
   if(sectionId==='containers') return {blNumber:''};
-  if(sectionId==='trucks') return {truckNo:'',product:''};
+  if(sectionId==='trucks') return {truckNo:''};
   if(sectionId==='rebacking') return {product:''};
   return {query:''};
 }
@@ -318,7 +327,6 @@ function recordMatchesSectionFilters(sectionId, record){
   }
   if(sectionId==='trucks'){
     if(filters.truckNo && !normalizedText(record.truckNo).includes(normalizedText(filters.truckNo))) return false;
-    if(filters.product && !productSearchText(record).includes(normalizedText(filters.product))) return false;
     return true;
   }
   if(sectionId==='rebacking'){
@@ -467,10 +475,7 @@ function filterField(label, control){ return `<div class="filter-field"><label>$
 function renderSectionFilters(section){
   const filters = getSectionFilters(section.id);
   if(section.id==='containers') return `<div class="filter-grid">${filterField(LANG==='ar'?'رقم البوليصة':'BL number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم البوليصة':'Search BL number'}" value="${esc(filters.blNumber)}" data-section-filter="${section.id}" data-filter-key="blNumber">`)}</div>`;
-  if(section.id==='trucks') return `<div class="filter-grid">
-    ${filterField(LANG==='ar'?'رقم العربة':'Vehicle number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم العربة':'Search vehicle'}" value="${esc(filters.truckNo)}" data-section-filter="${section.id}" data-filter-key="truckNo">`)}
-    ${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}
-  </div>`;
+  if(section.id==='trucks') return `<div class="filter-grid">${filterField(LANG==='ar'?'رقم الشاحنة':'Truck number',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث برقم الشاحنة':'Search truck number'}" value="${esc(filters.truckNo)}" data-section-filter="${section.id}" data-filter-key="truckNo">`)}</div>`;
   if(section.id==='rebacking') return `<div class="filter-grid">${filterField(LANG==='ar'?'المنتج':'Product',`<input type="text" autocomplete="off" placeholder="${LANG==='ar'?'ابحث بالمنتج':'Search product'}" value="${esc(filters.product)}" data-section-filter="${section.id}" data-filter-key="product">`)}</div>`;
   return `<div class="filter-grid">${filterField(LANG==='ar'?'بحث داخل السجلات':'Search records',`<input type="text" autocomplete="off" placeholder="${esc(t(STR.search))}" value="${esc(filters.query)}" data-section-filter="${section.id}" data-filter-key="query">`)}</div>`;
 }
@@ -480,7 +485,7 @@ function renderList(sectionId){
   const description = sectionId==='containers' ? (LANG==='ar'?'تابع الشحنات من مساحة عمل واحدة.':'Manage shipments from one workspace.') : sectionId==='trucks' ? (LANG==='ar'?'أدر فحوصات الشاحنات والمنتجات المحمّلة بوضوح وسرعة من سجل تشغيلي موحّد.':'Manage truck inspections and loaded products from one operational register.') : sectionId==='rebacking' ? (LANG==='ar'?'تابع عمليات معالجة المنتجات والكميات والفاقد من سجل تشغيلي منظم.':'Track product processing, quantities, and loss from an organized operational register.') : (LANG==='ar'?'استعرض السجلات ونظّم النتائج والتصدير من مكان واحد.':'Review records, organize results, and export from one place.');
   return `<div class="operations-shell"><section class="workspace-header"><div><div class="workspace-kicker">${LANG==='ar'?'سجل العمليات':'OPERATIONS REGISTER'}</div><h1 class="workspace-title">${esc(t(section.name))}</h1><p class="workspace-description">${description}</p></div><button class="btn btn-primary" data-action="new-record" data-section="${sectionId}">${LANG==='ar'?'سجل عملية جديدة':'New record'}</button></section>
     <section class="workspace-metrics"><div class="workspace-metric"><span class="value">${allRecords.length}</span><span class="label">${LANG==='ar'?'إجمالي السجلات':'Total records'}</span></div><div class="workspace-metric" data-filter-metric="${sectionId}" style="display:${filtersActive?'':'none'}"><span class="value" data-filter-count>${records.length}</span><span class="label">${LANG==='ar'?'نتائج الفلترة':'Filtered records'}</span></div></section>
-    <section class="filter-panel"><div class="filter-panel-head"><div><h2 class="filter-panel-title">${LANG==='ar'?'بحث':'Search'}</h2><div class="filter-panel-note">${LANG==='ar'?'التصدير يعكس النتائج الظاهرة فقط.':'Exports include visible results only.'}</div></div></div>${renderSectionFilters(section)}<div class="filter-footer"><div class="filter-results" style="display:${filtersActive?'':'none'}"><b data-filter-result-count="${sectionId}">${records.length}</b> ${LANG==='ar'?'سجل مطابق':'matching records'}</div><div class="filter-actions"><button class="btn btn-quiet btn-sm" data-action="clear-section-filters" data-section="${sectionId}">${LANG==='ar'?'مسح البحث':'Clear search'}</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-csv" data-section="${sectionId}">CSV</button><button class="btn btn-quiet btn-sm" data-action="export-filtered-xlsx" data-section="${sectionId}">Excel</button><button class="btn btn-primary btn-sm" data-action="share-filtered-pdf" data-section="${sectionId}">PDF</button></div></div></section>
+    <section class="filter-panel"><div class="filter-panel-head"><div><h2 class="filter-panel-title">${LANG==='ar'?'بحث':'Search'}</h2><div class="filter-panel-note">${LANG==='ar'?'التصدير يعكس النتائج الظاهرة فقط.':'Exports include visible results only.'}</div></div></div>${renderSectionFilters(section)}<div class="filter-footer"><div class="filter-results" style="display:${filtersActive?'':'none'}"><b data-filter-result-count="${sectionId}">${records.length}</b> ${LANG==='ar'?'سجل مطابق':'matching records'}</div><div class="filter-actions"><button class="btn btn-quiet btn-sm" data-action="clear-section-filters" data-section="${sectionId}">${LANG==='ar'?'مسح البحث':'Clear search'}</button>${sectionId==='containers'?'':`<button class="btn btn-quiet btn-sm" data-action="export-filtered-csv" data-section="${sectionId}">CSV</button>`}<button class="btn btn-quiet btn-sm" data-action="export-filtered-xlsx" data-section="${sectionId}">Excel</button><button class="btn btn-primary btn-sm" data-action="share-filtered-pdf" data-section="${sectionId}">PDF</button></div></div></section>
     <section class="records-panel"><div class="records-panel-head"><div><div class="records-panel-title" data-record-panel-title="${sectionId}">${filtersActive?(LANG==='ar'?'نتائج الفلترة':'Filtered records'):(LANG==='ar'?'سجل العمليات':'Operations register')}</div><div class="records-panel-sub" data-month-summary="${sectionId}">${monthStatusSummary(records)}</div></div>${renderMonthBar(sectionId)}</div><div data-records-display="${sectionId}">${filteredRecordsMarkup(section,records)}</div></section></div>`;
 }
 
@@ -509,18 +514,23 @@ function renderImageField(path, arr, labelHtml){
 
 function renderField(f, record){
   const val = getPath(record, f.key);
-  const req = f.required ? '<span class="req">*</span>' : '';
-  const label = `<label>${esc(t(f.label))} ${req}</label>`;
+  const conditionalRequired = f.key==='ncReason' && state.viewSectionId==='containers' && record && record.ncType==='other';
+  const req = (f.required || conditionalRequired) ? '<span class="req">*</span>' : '';
+  const validationKeys = (state.validationErrors && state.validationErrors[state.viewSectionId]) || [];
+  const isMissing = validationKeys.includes(f.key) && (record==null || record[f.key]===undefined || record[f.key]===null || record[f.key]==='');
+  const fieldStateClass = isMissing ? ' field-missing' : '';
+  const label = `<label>${esc(t(f.label))} ${req}${isMissing ? `<span class="missing-hint">${LANG==='ar'?'مطلوب':'Required'}</span>` : ''}</label>`;
+  if(f.key==='ncReason' && state.viewSectionId==='containers' && (!record || record.ncType!=='other')) return '';
   const full = (f.type==='textarea'||f.type==='group'||f.type==='multiDate'||f.type==='image'||f.type==='computed') ? ' field-full' : '';
 
   if(f.type==='text'){
-    return `<div class="field${full}">${label}<input type="text" data-field="${f.key}" value="${esc(val||'')}"></div>`;
+    return `<div class="field${full}${fieldStateClass}">${label}<input type="text" data-field="${f.key}" value="${esc(val||'')}"></div>`;
   }
   if(f.type==='number'){
-    return `<div class="field${full}">${label}<input type="text" inputmode="decimal" data-field="${f.key}" value="${esc(val!=null?val:'')}"></div>`;
+    return `<div class="field${full}${fieldStateClass}">${label}<input type="text" inputmode="decimal" data-field="${f.key}" value="${esc(val!=null?val:'')}"></div>`;
   }
   if(f.type==='date'){
-    return `<div class="field${full}">${label}<input type="date" data-field="${f.key}" value="${esc(normalizeDateStr(val)||'')}"></div>`;
+    return `<div class="field${full}${fieldStateClass}">${label}<input type="date" data-field="${f.key}" value="${esc(normalizeDateStr(val)||'')}"></div>`;
   }
   if(f.type==='textarea'){
     return `<div class="field${full}">${label}<textarea data-field="${f.key}">${esc(val||'')}</textarea></div>`;
@@ -532,7 +542,7 @@ function renderField(f, record){
   }
   if(f.type==='select'){
     const opts = (f.options||[]).map(o=>`<option value="${esc(o.value)}" ${o.value===val?'selected':''}>${esc(t(o.label))}</option>`).join('');
-    return `<div class="field${full}">${label}<select data-field="${f.key}"><option value="">--</option>${opts}</select></div>`;
+    return `<div class="field${full}${fieldStateClass}">${label}<select data-field="${f.key}"><option value="">--</option>${opts}</select></div>`;
   }
   if(f.type==='computed'){
     let cv; try{ cv = f.compute(record||{}); }catch(e){ cv=null; }

@@ -8,6 +8,7 @@ document.addEventListener('change', e=>{
     setPath(state.currentRecord, path, el.value);
     const section = getSection(state.viewSectionId);
     if(section) updateComputedDisplays(section);
+    if(path==='ncType' && state.viewSectionId==='containers') { render(); return; }
     scheduleDraftSave(state.viewSectionId);
   }
   const filterSection = el.getAttribute('data-section-filter');
@@ -417,6 +418,7 @@ document.addEventListener('click', e=>{
     const sectionId = el.getAttribute('data-section'); const section = getSection(sectionId);
     const savedDraft = getFormDraft(sectionId);
     state.currentRecord = savedDraft ? savedDraft.record : newRecord(section);
+    state.validationErrors[sectionId] = [];
     state.draftRestored = !!savedDraft;
     if(!state.currentRecord.date) state.currentRecord.date = todayISO();
     state.view='form'; state.viewSectionId = sectionId; render();
@@ -436,6 +438,7 @@ document.addEventListener('click', e=>{
     const rec = getRecords(sectionId).find(r=>r.id===id);
     if(!rec){ showToast(t(STR.noRecords)); return; }
     state.currentRecord = JSON.parse(JSON.stringify(rec));
+    state.validationErrors[sectionId] = [];
     state.view='form'; state.viewSectionId = sectionId; render();
   }
   else if(action==='toggle-work-status'){
@@ -474,8 +477,9 @@ document.addEventListener('click', e=>{
     const rec = state.currentRecord;
     /* Store dates in one canonical format so filters, sorting and analytics always match. */
     if(rec && rec.date){ const iso = normalizeDateStr(rec.date); if(iso) rec.date = iso; }
-    const missing = section.fields.filter(f=> f.required && (rec[f.key]===undefined || rec[f.key]===null || rec[f.key]===''));
-    if(missing.length){ showToast(t(STR.requiredMissing)); return; }
+    const missing = section.fields.filter(f=> (f.required || (sectionId==='containers' && f.key==='ncReason' && rec.ncType==='other')) && (rec[f.key]===undefined || rec[f.key]===null || String(rec[f.key]).trim()===''));
+    state.validationErrors[sectionId] = missing.map(f=>f.key);
+    if(missing.length){ render(); showToast(t(STR.requiredMissing)); return; }
     
     updateAggregates(sectionId, rec);
     

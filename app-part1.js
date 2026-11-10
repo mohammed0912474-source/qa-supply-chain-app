@@ -112,7 +112,7 @@ async function uploadToImgBB(dataUrl, retryCount = 0){
     return null;
   }
 }
-const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, detailSectionId:null, detailRecord:null, search:'', dateFrom:'', dateTo:'', sectionFilters:{}, sectionFilterRenderTimer:null, builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', listMonth:{}, regTempBiometric:null, formTemp:{}, builtinFieldTarget:null, draftSaveTimer:null, draftRestored:false };
+const state = { view:'home', auth:null, editingSectionId:null, editingRecordId:null, currentRecord:null, detailSectionId:null, detailRecord:null, search:'', dateFrom:'', dateTo:'', sectionFilters:{}, sectionFilterRenderTimer:null, validationErrors:{}, builderFields:[], monthly:{month:new Date().getMonth()+1, year:new Date().getFullYear()}, dashboardPeriod:'all', listMonth:{}, regTempBiometric:null, formTemp:{}, builtinFieldTarget:null, draftSaveTimer:null, draftRestored:false };
 
 const Store = {
   get(key, def){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }catch(e){ return def; } },
@@ -590,9 +590,7 @@ const BUILTIN_SECTIONS = [
           {key:'notes', type:'textarea', label:{ar:'ملاحظات', en:'Notes'}}
         ]},
       {key:'ncType', type:'select', label:{ar:'نوع الـ NC', en:'NC Type'},
-        options:[SEL('from_container','From Container','From Container'), SEL('handling','During Handling','During Handling'), SEL('other','أخرى','Other')]},
-      {key:'productView', type:'image', label:{ar:'صورة المنتج (Product View)', en:'Product View'}},
-      {key:'issuePhoto', type:'image', label:{ar:'توثيق مشكلة المنتج (إن وُجدت)', en:'Product Issue Documentation (if any)'}},
+        options:[SEL('from_supplier','From Supplier','From Supplier'), SEL('manual_handling','Manual Handling','Manual Handling'), SEL('forklift','Forklift','Forklift'), SEL('customs','Customs','Customs'), SEL('other','Other','Other')]},
       {key:'totalNC', type:'number', label:{ar:'إجمالي Total NC (تلقائي)', en:'Total NC (auto)'}},
       {key:'ncReason', type:'textarea', label:{ar:'سبب/توضيح الـ NC', en:'NC Reason'}},
       /* كان هنا حقل يدوي منفصل (ncTreated) للمعالج بجانب الإجمالي التلقائي
@@ -633,6 +631,7 @@ const BUILTIN_SECTIONS = [
       {key:'cleaning', type:'select', label:{ar:'النظافة', en:'Cleaning'}, options:[SEL('good','جيدة','Good'),SEL('bad','غير جيدة','Not Good')]},
       {key:'tarpFloor', type:'select', label:{ar:'مشمع سطح الشاحنة', en:'Truck Floor Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
       {key:'tarpCover', type:'select', label:{ar:'مشمع غطاء الشاحنة', en:'Truck Cover Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
+      {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'}, options:[SEL('cross_loading','Cross Loading','Cross Loading'),SEL('off_loading','Off Loading','Off Loading')]},
       {key:'inspectionResult', type:'select', label:{ar:'نتيجة الفحص', en:'Inspection Result'}, options:[SEL('accepted','مقبولة','Accepted'),SEL('rejected','مرفوضة','Rejected')]},
       {key:'remark', type:'textarea', label:{ar:'ملاحظات', en:'Remark'}},
       {key:'images', type:'image', label:{ar:'صور', en:'Images'}}
