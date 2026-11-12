@@ -3,18 +3,16 @@
 function renderTabbar(){
   const items = [
     {id:'home', view:'home', icon:NAV_ICONS.home, label:STR.home},
-    {id:'dashboard', view:'dashboard', icon:NAV_ICONS.dashboard, label:STR.dashboard},
+    ...(canOpenDashboard() ? [{id:'dashboard', view:'dashboard', icon:NAV_ICONS.dashboard, label:STR.dashboard}] : []),
     {id:'chat', view:'chat', icon:NAV_ICONS.chat, label:STR.chat},
     ...getAllSections().map(s=>({id:s.id, view:'list', sectionId:s.id, icon:SECTION_ICONS[s.id]||s.icon, label:s.name})),
-    {id:'monthly', view:'monthly', icon:NAV_ICONS.monthly, label:STR.monthly},
+    ...(canOpenMonthly() ? [{id:'monthly', view:'monthly', icon:NAV_ICONS.monthly, label:STR.monthly}] : []),
     {id:'files', view:'files', icon:NAV_ICONS.files, label:STR.filesTab},
-    ...(isAdmin() ? [{id:'builder', view:'builder', icon:NAV_ICONS.builder, label:STR.builder}] : [])
+    ...(canOpenSettings() ? [{id:'builder', view:'builder', icon:NAV_ICONS.builder, label:STR.builder}] : [])
   ];
   return `<nav class="tabbar" aria-label="${LANG==='ar'?'التنقل الرئيسي':'Main navigation'}">${items.map(it=>{
     const active = (state.view===it.view && (it.view!=='list' || state.viewSectionId===it.sectionId)) || (state.view==='form' && it.view==='list' && state.viewSectionId===it.sectionId);
-    return `<button class="tab-btn ${active?'active':''}" data-action="nav" data-view="${it.view}" data-section="${it.sectionId||''}">
-      <span class="ico">${it.icon}</span><span>${esc(t(it.label))}</span>
-    </button>`;
+    return `<button class="tab-btn ${active?'active':''}" data-action="nav" data-view="${it.view}" data-section="${it.sectionId||''}"><span class="ico">${it.icon}</span><span>${esc(t(it.label))}</span></button>`;
   }).join('')}</nav>`;
 }
 
@@ -50,6 +48,7 @@ function computeContainerAgg(records){
   let totalNC=0, totalTreated=0, totalBillQty=0, totalContainers=0, totalLoss=0, totalReback=0;
   const conditionTally={};
   const shippingLineTally={};
+  const shippingLineIssueTally={}, topBillsByNC=[];
   /* مفتوح لأي نوع NC جديد — القائمة الثابتة السابقة كانت تُسقط أي نوع خارجها. */
   const ncTypeTally={};
   
@@ -65,6 +64,8 @@ function computeContainerAgg(records){
     totalReback += metricOf(r,'totalReback','reback');
     const line = String(r.shippingLine||'').trim() || '__unspecified__';
     shippingLineTally[line] = (shippingLineTally[line]||0) + 1;
+    const ncValue=metricOf(r,'totalNC','nc'); shippingLineIssueTally[line]=(shippingLineIssueTally[line]||0)+ncValue;
+    topBillsByNC.push({bill:r.blNumber||'—', location:r.location||'—', nc:ncValue});
     /* توزيع نوع NC بالكميات لا بعدد السجلات — سجل واحد بكمية كبيرة كان يُحسب
        مثل سجل بكمية صغيرة تماماً. */
     if(r.ncType) ncTypeTally[r.ncType] = (ncTypeTally[r.ncType]||0) + metricOf(r,'totalNC','nc');
@@ -73,7 +74,7 @@ function computeContainerAgg(records){
   
   return {
     totalNC, totalTreated, totalBillQty, totalContainers, totalLoss, totalReback,
-    conditionTally, ncTypeTally, shippingLineTally,
+    conditionTally, ncTypeTally, shippingLineTally, shippingLineIssueTally, topBillsByNC,
     billsCount: completedRecords.length,
     count: completedRecords.length,
     allCount: records.length,
@@ -95,20 +96,23 @@ function computeTruckAgg(records){
   const rejected = completedRecords.filter(r=>r.inspectionResult==='rejected').length;
   const pending = total - accepted - rejected;
   let loadedQty = 0;
-  const operationTally = {}, rejectByTransporter = {}, rejectByLocation = {};
+  const operationTally = {}, rejectByTransporter = {}, rejectByLocation = {}, transporterTally = {}, locationTally = {}, operationByLocation = {};
   completedRecords.forEach(r=>{
     const rows = asArray(r.products);
     loadedQty += rows.length ? rows.reduce((sum,row)=>sum+(parseFloat(row&&row.qty)||0),0) : (parseFloat(r.qty)||0);
     const op = String(r.operationType||'__unspecified__').trim();
+    const transporter=String(r.transporter||'__unspecified__').trim(), location=String(r.location||'__unspecified__').trim();
+    transporterTally[transporter]=(transporterTally[transporter]||0)+1; locationTally[location]=(locationTally[location]||0)+1;
+    const locOp=location+' — '+op; operationByLocation[locOp]=(operationByLocation[locOp]||0)+1;
     operationTally[op] = (operationTally[op]||0) + 1;
     if(r.inspectionResult==='rejected'){
-      const transporter = String(r.transporter||'__unspecified__').trim();
-      const location = String(r.location||r.destination||'__unspecified__').trim();
-      rejectByTransporter[transporter] = (rejectByTransporter[transporter]||0) + 1;
-      rejectByLocation[location] = (rejectByLocation[location]||0) + 1;
+      const rejectTransporter = transporter;
+      const rejectLocation = String(r.location||r.destination||'__unspecified__').trim();
+      rejectByTransporter[rejectTransporter] = (rejectByTransporter[rejectTransporter]||0) + 1;
+      rejectByLocation[rejectLocation] = (rejectByLocation[rejectLocation]||0) + 1;
     }
   });
-  return {total,accepted,rejected,pending,loadedQty,transporters:uniqueNonEmpty(completedRecords,'transporter'),destinations:uniqueNonEmpty(completedRecords,'destination'),operationTally,rejectByTransporter,rejectByLocation,acceptRate:pct(accepted,total),rejectRate:pct(rejected,total),allCount:records.length,workingCount:records.length-total};
+  return {total,accepted,rejected,pending,loadedQty,transporters:uniqueNonEmpty(completedRecords,'transporter'),destinations:uniqueNonEmpty(completedRecords,'destination'),operationTally,rejectByTransporter,rejectByLocation,transporterTally,locationTally,operationByLocation,acceptRate:pct(accepted,total),rejectRate:pct(rejected,total),allCount:records.length,workingCount:records.length-total};
 }
 /* Product-processing aggregate — completed operations only, same contract. */
 function computeRebackAgg(records){
@@ -118,14 +122,14 @@ function computeRebackAgg(records){
   const damagedQty = sumField(completedRecords,'damagedQty');
   /* تحليل نوع NC لهذا القسم يُبنى من حقل "نوع NC" داخل سجلات القسم نفسه
      وبالكميات — كان يُعرض من سجلات قسم البوليصة وبعدد السجلات. */
-  const ncTypeTally = {};
+  const ncTypeTally = {}, ncTypeByWh = {};
   completedRecords.forEach(r=>{
     const raw = String(r.mergeType||'').trim();
     const key = raw || '__unspecified__';
-    ncTypeTally[key] = (ncTypeTally[key]||0) + (parseFloat(r.mergeQty)||0);
+    ncTypeTally[key] = (ncTypeTally[key]||0) + (parseFloat(r.mergeQty)||0); const wh=String(r.wh||'__unspecified__').trim(); const whKey=key+' — '+wh; ncTypeByWh[whKey]=(ncTypeByWh[whKey]||0)+(parseFloat(r.mergeQty)||0);
   });
   return {
-    ncQty, processedQty, damagedQty, ncTypeTally,
+    ncQty, processedQty, damagedQty, ncTypeTally, ncTypeByWh,
     count: completedRecords.length,
     allCount: records.length,
     workingCount: records.length - completedRecords.length,
@@ -265,10 +269,10 @@ function renderDashboard(){
   completedOnly(containers).forEach(r=>{ const k=r.transportMethod||'unknown'; transportTally[k]=(transportTally[k]||0)+1; });
   const transportLabels = {air:{ar:'عبر المطار',en:'By Air'},sea:{ar:'عبر الميناء',en:'By Sea/Port'},road:{ar:'عبر الطريق',en:'By Road'},unknown:{ar:'غير محدد',en:'Not specified'}};
   const transportParts = Object.keys(transportTally).map(k=>({label:t(transportLabels[k]||{ar:k,en:k}),value:transportTally[k],color:k==='air'?'var(--accent)':k==='road'?'var(--gold)':'var(--teal)'}));
-  const shippingLineLabels = {}; Object.keys(cAgg.shippingLineTally||{}).forEach(k=>{shippingLineLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k};});
+  const shippingLineLabels = {}; const issueLabels = {}; const billLabels = {}; Object.keys(cAgg.shippingLineIssueTally||{}).forEach(k=>issueLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k}); (cAgg.topBillsByNC||[]).forEach(x=>billLabels[x.bill+' — '+x.location]={ar:x.bill+' — '+x.location,en:x.bill+' — '+x.location}); Object.keys(cAgg.shippingLineTally||{}).forEach(k=>{shippingLineLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k};});
   const operationLabels = {cross_loading:{ar:'Cross Loading',en:'Cross Loading'},off_loading:{ar:'Off Loading',en:'Off Loading'},__unspecified__:{ar:'غير محدد',en:'Not specified'}};
   const rejectLabels = {}; Object.keys(tAgg.rejectByTransporter||{}).forEach(k=>{rejectLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k};});
-  const locationLabels = {}; Object.keys(tAgg.rejectByLocation||{}).forEach(k=>{locationLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k};});
+  const locationLabels = {}; const transporterLabels = {}; const operationLocationLabels = {}; Object.keys(tAgg.transporterTally||{}).forEach(k=>transporterLabels[k]={ar:k,en:k}); Object.keys(tAgg.operationByLocation||{}).forEach(k=>operationLocationLabels[k]={ar:k,en:k}); Object.keys(tAgg.rejectByLocation||{}).forEach(k=>{locationLabels[k]=k==='__unspecified__'?{ar:'غير محدد',en:'Not specified'}:{ar:k,en:k};});
   const truckParts = [{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,color:'var(--success)'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,color:'var(--danger)'}];
   const rebackParts = [{label:LANG==='ar'?'معالجة':'Processed',value:processedQty,color:'var(--success)'},{label:LANG==='ar'?'تالفة':'Damaged',value:damagedQty,color:'var(--danger)'}];
   const years=[]; const curY=new Date().getFullYear(); for(let y=curY-2;y<=curY+1;y++) years.push(y);
@@ -285,9 +289,9 @@ function renderDashboard(){
     {label:LANG==='ar'?'نسبة المعالجة':'Re-addressed %',value:cAgg.readdressedPct,suffix:'%',formula:'Re-addressed ÷ NC',tone:cAgg.readdressedPct==null?'neutral':cAgg.readdressedPct>=80?'good':cAgg.readdressedPct>=50?'warn':'bad'},
     {label:LANG==='ar'?'نسبة الفاقد من NC':'Loss % of NC',value:cAgg.lossOfNcPct,suffix:'%',formula:'Total Lose ÷ Total NC',tone:cAgg.lossOfNcPct==null?'neutral':cAgg.lossOfNcPct<=5?'good':cAgg.lossOfNcPct<=15?'warn':'bad'},
     {label:LANG==='ar'?'نسبة الفاقد الكلية في الشحنات':'Total Lose in Shipments %',value:cAgg.totalLossPct,suffix:'%',formula:'Total Lose ÷ Quantities',tone:cAgg.totalLossPct==null?'neutral':cAgg.totalLossPct<=2?'good':cAgg.totalLossPct<=5?'warn':'bad'}
-  ],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',`<div class="grid-2">${transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:''}${containerNcTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC في البواليص (بالكميات)':'Bill NC Types (by quantity)'}</h4>${renderDonut(containerNcTypeParts)}</div>`:''}<div class="chart-card"><h4>${LANG==='ar'?'الشحنات حسب Shipping Line':'Shipments by Shipping Line'}</h4>${renderTopTally(cAgg.shippingLineTally,shippingLineLabels,'var(--teal)')}</div></div>`)})
-  ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.total},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:tAgg.transporters}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div><div class="chart-card"><h4>${LANG==='ar'?'نوع العملية':'Operation Type'}</h4>${renderTopTally(tAgg.operationTally,operationLabels,'var(--accent)')}</div><div class="chart-card"><h4>${LANG==='ar'?'أعلى الناقلين حسب الرفض':'Top Transporters by Reject'}</h4>${renderTopTally(tAgg.rejectByTransporter,rejectLabels,'var(--danger)')}</div><div class="chart-card"><h4>${LANG==='ar'?'أعلى المواقع حسب الرفض':'Top Locations by Reject'}</h4>${renderTopTally(tAgg.rejectByLocation,locationLabels,'var(--gold)')}</div></div>`)}
-  ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rAgg.count},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'},{label:LANG==='ar'?'نسبة الفاقد':'Loss Rate',value:rebackLossRate,suffix:'%',tone:rebackLossRate<=2?'good':'warn'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>${ncTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC (بالكميات)':'NC Types (by quantity)'}</h4>${renderDonut(ncTypeParts)}</div>`:''}</div>`)}
+  ],LANG==='ar'?'يُستخدم هذا القسم لمتابعة البوليصة من طريقة النقل حتى الكميات وNC والفاقد.':'Use this section to monitor each bill from transport method through quantities, NC, and loss.',`<div class="grid-2">${transportParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'توزيع طرق النقل':'Transport Method Mix'}</h4>${renderDonut(transportParts)}</div>`:''}${containerNcTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC في البواليص (بالكميات)':'Bill NC Types (by quantity)'}</h4>${renderDonut(containerNcTypeParts)}</div>`:''}<div class="chart-card"><h4>${LANG==='ar'?'تكرار الخطوط الناقلة والمشكلات':'Shipping Line Frequency & Issues'}</h4>${renderTopTally(cAgg.shippingLineTally,shippingLineLabels,'var(--teal)')}<hr>${renderTopTally(cAgg.shippingLineIssueTally,issueLabels,'var(--danger)')}</div><div class="chart-card"><h4>${LANG==='ar'?'أعلى البواليص حسب NC والموقع':'Top Bills by NC & Location'}</h4>${renderTopTally(Object.fromEntries((cAgg.topBillsByNC||[]).sort((a,b)=>b.nc-a.nc).slice(0,6).map(x=>[x.bill+' — '+x.location,x.nc])),billLabels,'var(--gold)')}</div></div>`)})
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل فحص الشاحنات':'Truck Inspection Analytics',LANG==='ar'?'مؤشرات مستقلة للقبول والناقلين والمنتجات المحملة':'Independent indicators for acceptance, transporters, and loaded products',[{label:LANG==='ar'?'الشاحنات المفحوصة':'Trucks Inspected',value:tAgg.total},{label:LANG==='ar'?'مقبولة':'Accepted',value:tAgg.accepted,tone:'good'},{label:LANG==='ar'?'مرفوضة':'Rejected',value:tAgg.rejected,tone:tAgg.rejected?'bad':'good'},{label:LANG==='ar'?'معدل القبول':'Acceptance Rate',value:acceptRate,suffix:'%',tone:acceptRate==null?'neutral':acceptRate>=95?'good':acceptRate>=85?'warn':'bad'},{label:LANG==='ar'?'عدد الناقلين':'Transporters',value:tAgg.transporters}],LANG==='ar'?'توضح هذه اللوحة جودة الاستلام الميداني، أداء الناقلين، ونسبة قبول الشاحنات.':'This panel shows field receiving quality, transporter coverage, and truck acceptance.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'نتيجة الفحص':'Inspection Result'}</h4>${renderDonut(truckParts)}</div><div class="chart-card"><h4>${LANG==='ar'?'نوع العملية':'Operation Type'}</h4>${renderTopTally(tAgg.operationTally,operationLabels,'var(--accent)')}</div><div class="chart-card"><h4>${LANG==='ar'?'أعلى الناقلين حسب الرفض':'Top Transporters by Reject'}</h4>${renderTopTally(tAgg.rejectByTransporter,rejectLabels,'var(--danger)')}</div><div class="chart-card"><h4>${LANG==='ar'?'أعلى المواقع حسب الرفض':'Top Locations by Reject'}</h4>${renderTopTally(tAgg.rejectByLocation,locationLabels,'var(--gold)')}</div><div class="chart-card"><h4>${LANG==='ar'?'تكرار الناقلين مقابل الرفض':'Transporter Frequency vs Rejects'}</h4>${renderTopTally(tAgg.transporterTally,transporterLabels,'var(--teal)')}<hr>${renderTopTally(tAgg.rejectByTransporter,transporterLabels,'var(--danger)')}</div><div class="chart-card"><h4>${LANG==='ar'?'Cross/Off Loading حسب الموقع':'Cross/Off Loading by Location'}</h4>${renderTopTally(tAgg.operationByLocation,operationLocationLabels,'var(--accent)')}</div></div>`)}
+  ${renderSectionKpiPanel(LANG==='ar'?'تحليل معالجة المنتجات':'Product Processing Analytics',LANG==='ar'?'متابعة NC والكميات المعالجة والتالفة لكل سجل معالجة':'Track NC, processed quantities, and damaged quantities per processing record',[{label:LANG==='ar'?'سجلات المعالجة':'Processing Records',value:rAgg.count},{label:LANG==='ar'?'إجمالي NC':'Total NC Quantity',value:ncQty},{label:LANG==='ar'?'الكمية المعالجة':'Processed Quantity',value:processedQty,tone:'good'},{label:LANG==='ar'?'الكمية التالفة':'Damaged Quantity',value:damagedQty,tone:damagedQty?'bad':'good'},{label:LANG==='ar'?'معدل المعالجة':'Processing Rate',value:processedRate,suffix:'%',tone:processedRate==null?'neutral':processedRate>=80?'good':processedRate>=50?'warn':'bad'},{label:LANG==='ar'?'نسبة الفاقد':'Loss Rate',value:rebackLossRate,suffix:'%',tone:rebackLossRate<=2?'good':'warn'}],LANG==='ar'?'تساعد هذه اللوحة على قياس فعالية معالجة NC وتقليل الكميات التالفة.':'This panel measures NC processing effectiveness and damaged quantity reduction.',`<div class="grid-2"><div class="chart-card"><h4>${LANG==='ar'?'المعالجة مقابل التلف':'Processed vs Damaged'}</h4>${renderDonut(rebackParts)}</div>${ncTypeParts.length?`<div class="chart-card"><h4>${LANG==='ar'?'أنواع الـ NC (بالكميات)':'NC Types (by quantity)'}</h4>${renderDonut(ncTypeParts)}</div>`:''}<div class="chart-card"><h4>${LANG==='ar'?'نوع NC موزعاً على المخازن':'NC Type by WH'}</h4>${renderTopTally(rAgg.ncTypeByWh,Object.fromEntries(Object.keys(rAgg.ncTypeByWh||{}).map(k=>[k,{ar:k,en:k}])), 'var(--teal)')}</div></div>`)}
   <div class="card chart-card"><div class="section-title"><h3 style="margin:0;">${LANG==='ar'?'الاتجاه العام للفاقد وNC':'Overall NC & Loss Trend'}</h3></div>${renderBarChart(trendData('totalNC',state.dashboardTrendMonths||6),'var(--accent)')}</div>`;
 }
 
@@ -406,13 +410,12 @@ function refreshSectionFilterPreview(sectionId){
 function renderWorkStatusControl(sectionId, record){
   const status = workStatusOf(record);
   const next = status === 'completed' ? 'working' : 'completed';
-  const title = LANG === 'ar'
-    ? 'اضغط لتبديل حالة العملية يدويًا'
-    : 'Tap to switch the operation status manually';
-  return `<button type="button" class="work-toggle ${status}" data-action="toggle-work-status" data-section="${esc(sectionId)}" data-id="${esc(record.id)}" data-next="${next}" title="${esc(title)}" aria-pressed="${status==='completed'}"><span class="work-dot"></span><span class="work-text">${esc(workStatusLabel(status))}</span></button>`;
+  const title = LANG === 'ar' ? 'اضغط لتبديل حالة العملية يدويًا' : 'Tap to switch the operation status manually';
+  const submit = requiresSupervisorApproval(record) && !record.approvedBy && isSupervisor() ? `<button type="button" class="btn btn-primary btn-sm" data-action="submit-record" data-section="${esc(sectionId)}" data-id="${esc(record.id)}">${LANG==='ar'?'Submit واعتماد':'Submit & approve'}</button>` : (requiresSupervisorApproval(record) && !record.approvedBy ? `<span class="status-badge pending">${LANG==='ar'?'بانتظار اعتماد Supervisor':'Awaiting Supervisor approval'}</span>` : '');
+  return `<div class="record-status-actions"><button type="button" class="work-toggle ${status}" data-action="toggle-work-status" data-section="${esc(sectionId)}" data-id="${esc(record.id)}" data-next="${next}" title="${esc(title)}" aria-pressed="${status==='completed'}"><span class="work-dot"></span><span class="work-text">${esc(workStatusLabel(status))}</span></button>${submit}</div>`;
 }
 function renderRecordActions(sectionId, recordId){
-  return `<div class="record-actions"><button class="btn btn-primary btn-sm" data-action="view-record" data-section="${sectionId}" data-id="${recordId}">${LANG==='ar'?'عرض':'View'}</button><button class="btn btn-quiet btn-sm" data-action="share-record-pdf" data-section="${sectionId}" data-id="${recordId}">PDF</button><button class="btn btn-quiet btn-sm" data-action="edit-record" data-section="${sectionId}" data-id="${recordId}">${LANG==='ar'?'تعديل':'Edit'}</button><button class="btn btn-danger btn-sm" data-action="delete-record" data-section="${sectionId}" data-id="${recordId}" title="${esc(t(STR.delete))}">×</button></div>`;
+  return `<div class="record-actions"><button class="btn btn-primary btn-sm" data-action="view-record" data-section="${sectionId}" data-id="${recordId}">${LANG==='ar'?'عرض':'View'}</button><button class="btn btn-quiet btn-sm" data-action="share-record-pdf" data-section="${sectionId}" data-id="${recordId}">PDF</button>${canManageRecords()?`<button class="btn btn-quiet btn-sm" data-action="edit-record" data-section="${sectionId}" data-id="${recordId}">${LANG==='ar'?'تعديل':'Edit'}</button><button class="btn btn-danger btn-sm" data-action="delete-record" data-section="${sectionId}" data-id="${recordId}" title="${esc(t(STR.delete))}">×</button>`:''}</div>`;
 }
 function detailValue(label, value, isHtml = false){
   const shown = value === 0 ? '0' : (value == null || value === '' ? '—' : String(value));
@@ -440,7 +443,7 @@ function renderRecordDetail(sectionId, record){
   if(!section || !record) return `<div class="empty-state">${LANG==='ar'?'تعذر العثور على السجل':'Record not found'}</div>`;
   const identity = sectionId==='containers' ? record.blNumber : sectionId==='trucks' ? record.truckNo : (record.product || record.blNumber);
   const fields = section.fields.map(field=>renderDetailField(section, field, record[field.key])).join('');
-  return `<div class="detail-workspace"><div class="detail-header"><div><div class="form-workspace-kicker">${esc(t(section.name))}</div><h1>${esc(identity||t(section.name))}</h1><p>${LANG==='ar'?'عرض كامل لتفاصيل العملية وسجلها التشغيلي':'Complete operational record details'}</p></div><button class="btn" data-action="back-to-list" data-section="${sectionId}">${LANG==='ar'?'العودة إلى السجل':'Back to register'}</button></div><div class="detail-summary">${detailValue(LANG==='ar'?'التاريخ':'Date',record.date)}${detailValue(LANG==='ar'?'آخر تحديث':'Last updated',record._updated||record._created)}<div class="detail-item"><span class="detail-label">${LANG==='ar'?'حالة العملية':'Work status'}</span>${renderWorkStatusControl(sectionId, record)}</div></div>${fields}<div class="detail-footer"><button class="btn btn-quiet" data-action="edit-record" data-section="${sectionId}" data-id="${record.id}">${LANG==='ar'?'تعديل العملية':'Edit record'}</button><button class="btn btn-primary" data-action="share-record-pdf" data-section="${sectionId}" data-id="${record.id}">PDF</button></div></div>`;
+  return `<div class="detail-workspace"><div class="detail-header"><div><div class="form-workspace-kicker">${esc(t(section.name))}</div><h1>${esc(identity||t(section.name))}</h1><p>${LANG==='ar'?'عرض كامل لتفاصيل العملية وسجلها التشغيلي':'Complete operational record details'}</p></div><button class="btn" data-action="back-to-list" data-section="${sectionId}">${LANG==='ar'?'العودة إلى السجل':'Back to register'}</button></div><div class="detail-summary">${detailValue(LANG==='ar'?'التاريخ':'Date',record.date)}${detailValue(LANG==='ar'?'آخر تحديث':'Last updated',record._updated||record._created)}${detailValue(LANG==='ar'?'أنشأ السجل':'Created by',record.createdByName||'—')}<div class="detail-item"><span class="detail-label">${LANG==='ar'?'حالة العملية':'Work status'}</span>${renderWorkStatusControl(sectionId, record)}</div></div>${fields}<div class="detail-footer"><button class="btn btn-quiet" data-action="edit-record" data-section="${sectionId}" data-id="${record.id}">${LANG==='ar'?'تعديل العملية':'Edit record'}</button><button class="btn btn-primary" data-action="share-record-pdf" data-section="${sectionId}" data-id="${record.id}">PDF</button></div></div>`;
 }
 function renderRecordTable(section, records){
   const isShipment = section.id==='containers';

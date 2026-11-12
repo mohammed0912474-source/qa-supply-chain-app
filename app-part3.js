@@ -3,16 +3,10 @@
 /* ===================== Section Builder ===================== */
 function renderAdminPanel(){
   const users = getUsers();
-  const rows = users.map(u=>`
-    <div class="record-card">
-      <div class="top">
-        <div><div class="main">${esc(u.name)} ${u.isAdmin?'👑':''}</div><div class="meta">${esc(u.role||'')} ${u.biometricCredId?'· 🔒':''} ${u.isAdmin?'· '+esc(t(STR.roleAdmin)):''}</div></div>
-        <div class="actions">
-          <button class="btn ${u.isAdmin?'btn-outline':'btn-success'} btn-sm" data-action="toggle-user-admin" data-id="${u.id}">${u.isAdmin? esc(t(STR.removeAdmin)) : esc(t(STR.makeAdmin))}</button>
-          <button class="btn btn-danger btn-sm" data-action="revoke-user" data-id="${u.id}">${esc(t(STR.revokeUser))}</button>
-        </div>
-      </div>
-    </div>`).join('');
+  const rows = users.map(u=>{
+    const roleOptions=ROLE_OPTIONS.map(r=>`<option value="${esc(r.v)}" ${String(u.role||'')===r.v?'selected':''}>${esc(t(r.l))}</option>`).join('');
+    return `<div class="record-card"><div class="top"><div><div class="main">${esc(u.name)} ${u.isAdmin?'👑':''}</div><div class="meta">${esc(u.role||'')} ${u.biometricCredId?'· 🔒':''} ${u.isAdmin?'· '+esc(t(STR.roleAdmin)):''}</div></div><div class="actions">${hasRoleAtLeast('Engineer')&&!u.isAdmin?`<button class="btn btn-outline btn-sm" data-action="send-followup" data-id="${u.id}">${LANG==='ar'?'متابعة':'Follow up'}</button>`:''}${hasRoleAtLeast('Manager')&&!u.isAdmin?`<select data-action="change-user-role" data-id="${u.id}">${roleOptions}</select><button class="btn ${u.isAdmin?'btn-outline':'btn-success'} btn-sm" data-action="toggle-user-admin" data-id="${u.id}">${u.isAdmin? esc(t(STR.removeAdmin)) : esc(t(STR.makeAdmin))}</button><button class="btn btn-danger btn-sm" data-action="revoke-user" data-id="${u.id}">${esc(t(STR.revokeUser))}</button>`:''}</div></div></div>`;
+  }).join('');
   return `
   <div class="card">
     <h2>🛡️ ${esc(t(STR.adminPanelTitle))}</h2>
@@ -24,7 +18,7 @@ function renderAdminPanel(){
       <label>${esc(t(STR.masterCodeLabel))}</label>
       <input type="text" id="masterCodeInput" value="${esc(state.formTemp.masterCodeInput!=null ? state.formTemp.masterCodeInput : getMasterCode())}">
       <div class="hint">${esc(t(STR.masterCodeHint))}</div>
-      <button class="btn btn-primary btn-sm" style="margin-top:8px;" data-action="save-master-code">${esc(t(STR.saveCode))}</button>
+      ${hasRoleAtLeast('Manager')?`<button class="btn btn-primary btn-sm" style="margin-top:8px;" data-action="save-master-code">${esc(t(STR.saveCode))}</button>`:''}
     </div>
     ${RESET_REQUESTS_CACHE.list.length ? `
     <div class="field" style="margin-bottom:12px;">
@@ -57,9 +51,10 @@ function renderAdminPanel(){
 }
 
 function renderBuilder(){
-  if(!isAdmin()){
+  if(!canOpenSettings()){
     return `<div class="card"><div class="empty-state">🔒 ${esc(t(STR.adminOnlyNotice))}</div></div>`;
   }
+  if(!hasRoleAtLeast('Manager')) return renderAdminPanel();
   const customs = getCustomSections();
   const existingRows = customs.map(s=>`
     <div class="record-card">
@@ -109,7 +104,7 @@ function renderBuilder(){
   const fieldRows = builderFieldRows('newSection');
 
   return `
-  ${isAdmin() ? renderAdminPanel() : ''}
+  ${canOpenSettings() ? renderAdminPanel() : ''}
   <div class="card">
     <h2>⚙️ ${esc(t(STR.builder))}</h2>
     <div class="desc">${LANG==='ar'?'الأقسام الأساسية (تقدر تضيف حقول جديدة لأي قسم منها)':'Built-in sections (you can add new fields to any of them)'}</div>
@@ -735,7 +730,7 @@ function renderRegisterScreen(){
   <div class="auth-sub">${esc(t(STR.registerSub))}</div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.name))}</label><input type="text" id="regName" value="${esc(state.formTemp.regName||'')}"></div>
   <div class="field" style="margin-bottom:10px;"><label>${esc(t(STR.role))}</label>
-    <select id="regRole">${ROLE_OPTIONS.map(r=>`<option value="${esc(r.v)}" ${(state.formTemp.regRole||ROLE_OPTIONS[0].v)===r.v?'selected':''}>${esc(t(r.l))}</option>`).join('')}</select>
+    <select id="regRole">${ROLE_OPTIONS.slice(0,2).map(r=>`<option value="${esc(r.v)}" ${(state.formTemp.regRole||ROLE_OPTIONS[0].v)===r.v?'selected':''}>${esc(t(r.l))}</option>`).join('')}</select>
   </div>
   <div class="field" style="margin-bottom:10px;"><label>${LANG==='ar'?'رقم الهاتف':'Phone number'}</label><input type="tel" id="regPhone" value="${esc(state.formTemp.regPhone||'')}" autocomplete="tel"></div>
   <div class="field" style="margin-bottom:10px;"><label>${LANG==='ar'?'البريد الإلكتروني':'Email address'}</label><input type="email" id="regEmail" value="${esc(state.formTemp.regEmail||'')}" autocomplete="email"></div>
@@ -806,7 +801,7 @@ function showAccountModal(){
     <div class="field"><label>${LANG==='ar'?'رقم الهاتف':'Phone number'}</label><input type="tel" id="profilePhone" value="${esc(user?(user.phone||''):'')}" autocomplete="tel"></div>
     <div class="field"><label>${LANG==='ar'?'البريد الإلكتروني':'Email address'}</label><input type="email" id="profileEmail" value="${esc(user?(user.email||''):'')}" autocomplete="email"></div>
     <button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="auth-save-profile">${LANG==='ar'?'حفظ الملف الشخصي':'Save profile'}</button>
-    <button class="btn btn-danger btn-block" style="margin-top:10px;" data-action="auth-logout">${esc(t(STR.logout))}</button>
+    ${PRIVATE_CHAT_CACHE.list.length?`<div class="record-card" style="margin-top:12px;"><b>${LANG==='ar'?'المتابعات الخاصة':'Private follow-ups'}</b>${PRIVATE_CHAT_CACHE.list.slice(0,5).map(m=>`<div class="meta" style="margin-top:6px;">${esc(m.text)}<br><small>${esc(m.fromName||'Engineer')} · ${esc(m.time||'')}</small></div>`).join('')}</div>`:''}<button class="btn btn-danger btn-block" style="margin-top:10px;" data-action="auth-logout">${esc(t(STR.logout))}</button>
     <button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="close-modal">${esc(t(STR.cancel))}</button>
   </div>`;
   document.body.appendChild(overlay);

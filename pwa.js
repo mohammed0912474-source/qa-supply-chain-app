@@ -8,14 +8,14 @@
   }
 })();
 
-const APP_VERSION = 'v11.0.0';
+const APP_VERSION = 'v12.0.0';
 if('serviceWorker' in navigator){
   /* Reload only when an already-controlled page receives a NEW service worker.
      On a first visit there is no previous controller, so we must not reload —
      that extra reload was the "multiple page redirects" (+4.4 s) in the audit. */
   const hadController = !!navigator.serviceWorker.controller;
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('./sw.js').then(reg=> reg.update()).catch(err=> console.warn('SW registration failed', err));
+    navigator.serviceWorker.register('./sw.js').then(reg=>{ reg.update(); setInterval(()=>reg.update().catch(()=>{}), 5 * 60 * 1000); document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); }); }).catch(err=> console.warn('SW registration failed', err));
   });
   let refreshingAfterUpdate = false;
   navigator.serviceWorker.addEventListener('controllerchange', ()=>{

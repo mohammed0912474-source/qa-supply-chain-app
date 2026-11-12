@@ -196,7 +196,7 @@ const WORK_STATUS_DEFAULT = 'working';
 function workStatusOf(record){
   return (record && record.workStatus) === 'completed' ? 'completed' : WORK_STATUS_DEFAULT;
 }
-function isCompleted(record){ return workStatusOf(record) === 'completed'; }
+function isCompleted(record){ return workStatusOf(record) === 'completed' && isApproved(record); }
 function completedOnly(records){ return (records||[]).filter(isCompleted); }
 function workStatusLabel(status){
   return status === 'completed'
@@ -395,7 +395,7 @@ const STR = {
   dashboard:{ar:'التحليلات', en:'Dashboard'},
   containers:{ar:'الشحنات', en:'Shippment'},
   trucks:{ar:'الشحن', en:'Loading'},
-  rebacking:{ar:'معالجة المنتجات', en:'Rebacking'},
+  rebacking:{ar:'معالجة المنتجات', en:'Repacking'},
   chat:{ar:'الدردشة', en:'Chat'},
   profilePic:{ar:'صورة الملف الشخصي', en:'Profile Picture'},
   uploadPhoto:{ar:'رفع صورة', en:'Upload Photo'},
@@ -543,10 +543,11 @@ const STR = {
 };
 
 const ROLE_OPTIONS = [
-  {v:'مسؤول جودة', l:{ar:'مسؤول جودة', en:'QA Officer'}},
-  {v:'مشرف', l:{ar:'مشرف', en:'Supervisor'}},
-  {v:'مدير', l:{ar:'مدير', en:'Manager'}},
-  {v:'أخرى', l:{ar:'أخرى', en:'Other'}}
+  {v:'Inspector', l:{ar:'مفتش', en:'Inspector'}},
+  {v:'Officer', l:{ar:'مسؤول', en:'Officer'}},
+  {v:'Engineer', l:{ar:'مهندس', en:'Engineer'}},
+  {v:'Supervisor', l:{ar:'مشرف', en:'Supervisor'}},
+  {v:'Manager', l:{ar:'مدير', en:'Manager'}}
 ];
 
 /* ===================== Field helpers ===================== */
@@ -568,16 +569,16 @@ const BUILTIN_SECTIONS = [
         options:[SEL('yes','نعم','Yes'), SEL('no','لا','No'), SEL('pending','قيد الانتظار','Pending')]},
       {key:'transportMethod', type:'select', label:{ar:'طريقة النقل', en:'Transport Method'},
         options:[SEL('air','عبر المطار','By Air'), SEL('sea','عبر الحاويات (بحري)','By Sea/Container'), SEL('road','عبر الطريق','By Road')]},
-      {key:'shippingLine', type:'text', label:{ar:'الناقل البحري (Shipping Line)', en:'Shipping Line'}},
+      {key:'shippingLine', type:'text', label:{ar:'الناقل البحري (Shipping Line)', en:'Shipping Line'}, required:true},
       {key:'transportComment', type:'text', label:{ar:'تعليق على طريقة النقل (إن وجد)', en:'Transport comment (if any)'}},
       {key:'containerCount', type:'number', label:{ar:'عدد الحاويات', en:'Number of Containers'}},
       {key:'billQty', type:'number', label:{ar:'الكمية الكاملة بالبوليصة', en:'Total Quantity per Bill'}},
-      {key:'factory', type:'text', label:{ar:'المصنع', en:'Factory'}},
-      {key:'countryOfOrigin', type:'text', label:{ar:'بلد المنشأ', en:'Country of Origin'}},
+      {key:'factory', type:'text', label:{ar:'المصنع', en:'Factory'}, required:true},
+      {key:'countryOfOrigin', type:'text', label:{ar:'بلد المنشأ', en:'Country of Origin'}, required:true},
       {key:'productDesc', type:'text', label:{ar:'المنتج ووصفه', en:'Product & Description'}, required:true},
       {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
       {key:'prodExpDates', type:'multiDate', label:{ar:'تواريخ الإنتاج والانتهاء', en:'Production & Expiry Dates'}},
-      {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'},
+      {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'}, required:true,
         options:[SEL('cross','Cross Loading','Cross Loading'), SEL('off','Off Loading','Off Loading')]},
       {key:'containerDetails', type:'group', label:{ar:'تفاصيل الحاويات', en:'Container Details'},
         fields:[
@@ -612,10 +613,11 @@ const BUILTIN_SECTIONS = [
     listFields:['date','truckNo','destination','inspectionResult'],
     fields:[
       {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
-      {key:'location', type:'text', label:{ar:'الموقع', en:'Location'}},
+      {key:'location', type:'text', label:{ar:'الموقع', en:'Location'}, required:true},
+      {key:'wh', type:'text', label:{ar:'المخزن', en:'WH'}, required:true},
       {key:'truckNo', type:'text', label:{ar:'رقم الشاحنة', en:'Truck No'}, required:true},
-      {key:'destination', type:'text', label:{ar:'الوجهة', en:'Destination'}},
-      {key:'transporter', type:'text', label:{ar:'الناقل', en:'Transporter'}},
+      {key:'destination', type:'text', label:{ar:'الوجهة', en:'Destination'}, required:true},
+      {key:'transporter', type:'text', label:{ar:'الناقل', en:'Transporter'}, required:true},
       {key:'prodExpDates', type:'multiDate', label:{ar:'تواريخ الإنتاج والانتهاء', en:'Production & Expiry Dates'}},
       {key:'driverName', type:'text', label:{ar:'اسم السائق', en:'Driver Name'}},
       {key:'driverPhone', type:'text', label:{ar:'هاتف السائق', en:'Driver Phone'}},
@@ -625,13 +627,13 @@ const BUILTIN_SECTIONS = [
           {key:'qty', type:'text', label:{ar:'الكمية (يدوياً)', en:'Qty (Manual)'}},
           {key:'unit', type:'unit', label:{ar:'الوحدة (اكتبها يدوياً لو مختلفة)', en:'Unit (type manually if different)'}}
         ]},
-      {key:'orderType', type:'select', label:{ar:'نوع الطلب', en:'Order Type'},
+      {key:'orderType', type:'select', label:{ar:'نوع الطلب', en:'Order Type'}, required:true,
         options:[SEL('sales','مبيعات','Sales'), SEL('replenishment','تغذية مخزون','Replenishment'), SEL('consignment','بضاعة أمانة','Consignment'), SEL('cash','عميل نقدي','Cash Customer'), SEL('staffsales','منفذ بيع الموظفين','Staff Sales Point'), SEL('other','أخرى','Other')]},
       {key:'orderTypeComment', type:'text', label:{ar:'تعليق على نوع الطلب (اختياري)', en:'Order type comment (optional)'}},
       {key:'cleaning', type:'select', label:{ar:'النظافة', en:'Cleaning'}, options:[SEL('good','جيدة','Good'),SEL('bad','غير جيدة','Not Good')]},
       {key:'tarpFloor', type:'select', label:{ar:'مشمع سطح الشاحنة', en:'Truck Floor Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
       {key:'tarpCover', type:'select', label:{ar:'مشمع غطاء الشاحنة', en:'Truck Cover Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
-      {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'}, options:[SEL('cross_loading','Cross Loading','Cross Loading'),SEL('off_loading','Off Loading','Off Loading')]},
+      {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'}, required:true, options:[SEL('cross_loading','Cross Loading','Cross Loading'),SEL('off_loading','Off Loading','Off Loading')]},
       {key:'inspectionResult', type:'select', label:{ar:'نتيجة الفحص', en:'Inspection Result'}, options:[SEL('accepted','مقبولة','Accepted'),SEL('rejected','مرفوضة','Rejected')]},
       {key:'remark', type:'textarea', label:{ar:'ملاحظات', en:'Remark'}},
       {key:'images', type:'image', label:{ar:'صور', en:'Images'}}
@@ -641,12 +643,13 @@ const BUILTIN_SECTIONS = [
     listFields:['date','blNumber','product','processedPercent'],
     fields:[
       {key:'date', type:'date', label:{ar:'التاريخ', en:'Date'}, required:true},
-      {key:'location', type:'text', label:{ar:'الموقع', en:'Location'}},
+      {key:'location', type:'text', label:{ar:'الموقع', en:'Location'}, required:true},
+      {key:'wh', type:'text', label:{ar:'المخزن', en:'WH'}, required:true},
       {key:'blNumber', type:'text', label:{ar:'رقم البوليصة', en:'BL Number'}, required:true},
       {key:'product', type:'text', label:{ar:'المنتج', en:'Product'}},
       {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
       {key:'mergeReason', type:'textarea', label:{ar:'سبب NC', en:'NC Reason'}},
-      {key:'mergeType', type:'text', label:{ar:'نوع NC', en:'NC Type'}},
+      {key:'mergeType', type:'select', label:{ar:'نوع NC', en:'NC Type'}, required:true, options:[SEL('from_supplier','From Supplier','From Supplier'),SEL('manual_handling','Manual Handling','Manual Handling'),SEL('forklift','Forklift','Forklift'),SEL('customs','Customs','Customs'),SEL('other','Other','Other')]},
       {key:'mergeQty', type:'number', label:{ar:'كمية NC', en:'NC Quantity'}, required:true},
       {key:'processedQty', type:'number', label:{ar:'الكمية المعالجة', en:'Processed Quantity'}},
       {key:'damagedQty', type:'number', label:{ar:'الكمية التالفة', en:'Damaged Quantity'}},
@@ -665,6 +668,7 @@ const CUSTOM_SECTIONS_CACHE = { list: [] };
 const RECORDS_CACHE = {};        // { sectionId: [records...] }
 const USERS_CACHE = { list: [] };
 const CHAT_CACHE = { list: [] };
+const PRIVATE_CHAT_CACHE = { list: [] };
 const META_CACHE = { masterCode: null, adminPasswordHash: null, adminBiometricCredId: null };
 const ACCESS_LOG_CACHE = { list: [] };
 const RESET_REQUESTS_CACHE = { list: [] };
@@ -784,7 +788,18 @@ function subscribeAllCoreData(){
   subscribeCustomSections();
   subscribeBuiltinExtensions();
   subscribeChat();
+  subscribePrivateChat();
   BUILTIN_SECTIONS.forEach(s=> subscribeSection(s.id));
+}
+
+function subscribePrivateChat(){
+  const user=getCurrentUser(); if(!user) return;
+  qaCol('privateMessages/items').where('targetUserId','==',user.id).orderBy('time','desc').limit(30).onSnapshot(snap=>{
+    PRIVATE_CHAT_CACHE.list=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const unseen=PRIVATE_CHAT_CACHE.list.find(m=>!m.seen);
+    if(unseen && _appBooted && state.auth===null){ showToast((LANG==='ar'?'لديك متابعة من ':'You have a follow-up from ')+(unseen.fromName||'Engineer')); }
+    if(state.view==='builder' || state.view==='home') scheduleRender();
+  },err=>console.warn('private chat sync error',err));
 }
 
 function subscribeChat() {
@@ -837,7 +852,13 @@ function getRecords(sectionId){ return RECORDS_CACHE[sectionId] || []; }
 function saveRecordRemote(sectionId, record){
   if(!record || !record.id) return Promise.reject(new Error('Invalid record'));
   const user = getCurrentUser();
-  if (user) record.userId = user.id;
+  if (user) {
+    record.userId = user.id;
+    record.createdByName = record.createdByName || user.name;
+    record.createdByRole = record.createdByRole || roleOf(user);
+  }
+  record._updated = new Date().toISOString();
+  if(!record.workStatus) record.workStatus='working';
   return qaCol('records_'+sectionId+'/items').doc(record.id).set(record).catch(err=>{
     console.error('saveRecordRemote failed:', err);
     throw err;
@@ -897,6 +918,25 @@ function getCurrentUser(){
   if(!id) return null;
   return getUsers().find(u=>u.id===id) || null;
 }
+function roleOf(user=getCurrentUser()){
+  if(!user) return '';
+  if(user.isAdmin || user.id==='__admin__') return 'Main Admin';
+  const raw=String(user.role||'').toLowerCase();
+  if(raw.includes('manager') || raw.includes('مدير')) return 'Manager';
+  if(raw.includes('supervisor') || raw.includes('مشرف')) return 'Supervisor';
+  if(raw.includes('engineer') || raw.includes('مهندس')) return 'Engineer';
+  if(raw.includes('officer') || raw.includes('مسؤول')) return 'Officer';
+  return 'Inspector';
+}
+function hasRoleAtLeast(role){ const rank={Inspector:1,Officer:2,Engineer:3,Supervisor:4,Manager:5,'Main Admin':6}; return (rank[roleOf()]||0)>=(rank[role]||99); }
+function canUseSection(){ return !!getCurrentUser(); }
+function canOpenDashboard(){ return hasRoleAtLeast('Supervisor'); }
+function canOpenMonthly(){ return hasRoleAtLeast('Engineer'); }
+function canOpenSettings(){ return hasRoleAtLeast('Supervisor') || isAdmin(); }
+function canManageRecords(){ return hasRoleAtLeast('Engineer'); }
+function isSupervisor(){ return roleOf()==='Supervisor' || roleOf()==='Manager' || roleOf()==='Main Admin'; }
+function requiresSupervisorApproval(record){ const d=recordDateISO(record); return !!d && d >= '2026-11-01'; }
+function isApproved(record){ return !requiresSupervisorApproval(record) || record.approvedBy; }
 function isAdmin(){ const u = getCurrentUser(); return !!(u && u.isAdmin); }
 function adminLoginCount(){ return ACCESS_LOG_CACHE.list.filter(e=> e.type==='admin-login' || e.type==='admin-setup').length; }
 function pushAccessLog(entry){ qaCol('accessLog/items').doc(uid()).set(entry).catch(err=>console.warn('log error',err)); }

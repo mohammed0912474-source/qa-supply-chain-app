@@ -11,6 +11,12 @@ document.addEventListener('change', e=>{
     if(path==='ncType' && state.viewSectionId==='containers') { render(); return; }
     scheduleDraftSave(state.viewSectionId);
   }
+  if(el.getAttribute('data-action')==='change-user-role'){
+    if(!hasRoleAtLeast('Manager')) return;
+    const id=el.getAttribute('data-id'); const u=getUsers().find(x=>x.id===id); if(!u || u.isAdmin) return;
+    saveUserRemote(Object.assign({},u,{role:el.value})).then(()=>showToast(t(STR.savedOk))).catch(()=>showToast(LANG==='ar'?'تعذر حفظ الدور':'Could not save role'));
+    return;
+  }
   const filterSection = el.getAttribute('data-section-filter');
   if(filterSection){
     setSectionFilter(filterSection, el.getAttribute('data-filter-key'), el.value);
@@ -353,6 +359,7 @@ document.addEventListener('click', e=>{
   }
 
   if(action==='toggle-user-admin'){
+    if(!hasRoleAtLeast('Manager')) return;
     const id = el.getAttribute('data-id');
     const u = getUsers().find(x=>x.id===id);
     if(!u) return;
@@ -360,11 +367,25 @@ document.addEventListener('click', e=>{
     saveUserRemote(updated);
     return;
   }
+  if(action==='send-followup'){
+    if(!hasRoleAtLeast('Engineer')) return;
+    const targetId=el.getAttribute('data-id'), target=getUsers().find(u=>u.id===targetId); if(!target) return;
+    const text=window.prompt(LANG==='ar'?'اكتب ملاحظة المتابعة للمستخدم':'Write the follow-up note for this user',''); if(!text || !text.trim()) return;
+    const me=getCurrentUser(); qaCol('privateMessages/items').doc(uid()).set({targetUserId:target.id,targetName:target.name,fromUserId:me.id,fromName:me.name,text:text.trim(),time:new Date().toISOString(),seen:false}).then(()=>showToast(LANG==='ar'?'تم إرسال المتابعة الخاصة':'Private follow-up sent')).catch(()=>showToast(LANG==='ar'?'تعذر إرسال المتابعة':'Could not send follow-up'));
+    return;
+  }
+  if(action==='change-user-role'){
+    if(!hasRoleAtLeast('Manager')) return;
+    const id=el.getAttribute('data-id'); const u=getUsers().find(x=>x.id===id); if(!u || u.isAdmin) return;
+    const role=el.value; saveUserRemote(Object.assign({},u,{role})).then(()=>showToast(t(STR.savedOk))).catch(()=>showToast(LANG==='ar'?'تعذر حفظ الدور':'Could not save role'));
+    return;
+  }
   if(action==='open-reset-modal'){
     showResetPasswordModal(el.getAttribute('data-userid'), el.getAttribute('data-reqid'), el.getAttribute('data-name'));
     return;
   }
   if(action==='confirm-reset-password'){
+    if(!canOpenSettings()) return;
     (async ()=>{
       const userId = el.getAttribute('data-userid');
       const reqId = el.getAttribute('data-reqid');
@@ -381,12 +402,14 @@ document.addEventListener('click', e=>{
     return;
   }
   if(action==='revoke-user'){
+    if(!hasRoleAtLeast('Manager')){ showToast(LANG==='ar'?'الحذف متاح للمدير فقط':'Only Manager can remove users'); return; }
     if(!confirm(t(STR.revokeConfirm))) return;
     const id = el.getAttribute('data-id');
     deleteUserRemote(id);
     return;
   }
   if(action==='save-master-code'){
+    if(!hasRoleAtLeast('Manager')) return;
     const val = (document.getElementById('masterCodeInput').value||'').trim();
     if(!val) return;
     saveMetaRemote({masterCode: val});
@@ -398,7 +421,9 @@ document.addEventListener('click', e=>{
   /* ---- General app actions ---- */
   if(action==='nav'){
     const view = el.getAttribute('data-view'); const section = el.getAttribute('data-section');
-    if(view==='builder' && !isAdmin()){ showToast(t(STR.adminOnlyNotice)); return; }
+    if(view==='dashboard' && !canOpenDashboard()){ showToast(LANG==='ar'?'لوحة التحليلات متاحة من Supervisor فأعلى':'Dashboard is available to Supervisor and above'); return; }
+    if(view==='monthly' && !canOpenMonthly()){ showToast(LANG==='ar'?'التقرير الشهري متاح من Engineer فأعلى':'Monthly reports are available to Engineer and above'); return; }
+    if(view==='builder' && !canOpenSettings()){ showToast(LANG==='ar'?'الإعدادات متاحة لـ Supervisor فأعلى':'Settings are available to Supervisor and above'); return; }
     state.view = view; state.viewSectionId = section || null; state.search=''; state.dateFrom=''; state.dateTo='';
     if(view==='list' && section) state.listMonth[section] = currentMonthKey();
     render();
@@ -434,12 +459,20 @@ document.addEventListener('click', e=>{
     state.view='list'; state.viewSectionId=el.getAttribute('data-section'); state.detailRecord=null; render();
   }
   else if(action==='edit-record'){
+    if(!canManageRecords()){ showToast(LANG==='ar'?'ليس لديك صلاحية التعديل':'You do not have edit permission'); return; }
     const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
     const rec = getRecords(sectionId).find(r=>r.id===id);
     if(!rec){ showToast(t(STR.noRecords)); return; }
     state.currentRecord = JSON.parse(JSON.stringify(rec));
     state.validationErrors[sectionId] = [];
     state.view='form'; state.viewSectionId = sectionId; render();
+  }
+  else if(action==='submit-record'){
+    if(!isSupervisor()){ showToast(LANG==='ar'?'اعتماد السجل متاح لـ Supervisor فقط':'Only a Supervisor can submit records'); return; }
+    const sectionId=el.getAttribute('data-section'), id=el.getAttribute('data-id');
+    const rec=getRecords(sectionId).find(r=>r.id===id); if(!rec) return;
+    rec.approvedBy=getCurrentUser().id; rec.approvedByName=getCurrentUser().name; rec.approvedAt=new Date().toISOString(); rec.workStatus='completed';
+    saveRecordRemote(sectionId,rec).then(()=>{ showToast(LANG==='ar'?'تم اعتماد السجل وإرساله':'Record submitted and approved'); render(); }).catch(()=>showToast(LANG==='ar'?'تعذر حفظ الاعتماد':'Could not save approval'));
   }
   else if(action==='toggle-work-status'){
     // Manual status control — the only thing that sets an operation's status.
@@ -467,6 +500,7 @@ document.addEventListener('click', e=>{
     });
   }
   else if(action==='delete-record'){
+    if(!canManageRecords()){ showToast(LANG==='ar'?'ليس لديك صلاحية الحذف':'You do not have delete permission'); return; }
     const sectionId = el.getAttribute('data-section'); const id = el.getAttribute('data-id');
     if(!confirm(t(STR.confirmDelete))) return;
     deleteRecordRemote(sectionId, id);
