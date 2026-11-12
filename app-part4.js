@@ -164,7 +164,7 @@ document.addEventListener('click', e=>{
   if(action==='auth-pick-user'){ state.auth = {screen:'lock', targetUserId: el.getAttribute('data-id')}; render(); return; }
   if(action==='auth-find-account'){
     const name = (document.getElementById('findAccountName').value||'').trim();
-    if(!name){ showToast(t(STR.requiredMissing)); return; }
+    if(!name || !role || !phone || !email){ showToast(LANG==='ar'?'أكمل الاسم والمسمى الوظيفي والهاتف والبريد الإلكتروني':'Complete name, job title, phone and email'); return; }
     const found = getUsers().find(u=> (u.name||'').trim().toLowerCase() === name.toLowerCase());
     if(!found){ showToast(t(STR.accountNotFound)); return; }
     state.auth = {screen:'lock', targetUserId: found.id};
@@ -178,22 +178,24 @@ document.addEventListener('click', e=>{
     const nameEl = document.getElementById('profileName');
     const phoneEl = document.getElementById('profilePhone');
     const emailEl = document.getElementById('profileEmail');
+    const roleEl = document.getElementById('profileRole');
     if(!nameEl){ showToast(LANG==='ar'?'تعذّر قراءة حقول الملف الشخصي':'Could not read the profile fields'); return; }
     const name = (nameEl.value||'').trim();
     const phone = ((phoneEl&&phoneEl.value)||'').trim();
     const email = ((emailEl&&emailEl.value)||'').trim();
-    if(!name){ showToast(t(STR.requiredMissing)); return; }
+    const role = ((roleEl&&roleEl.value)||user.role||'Inspector').trim();
+    if(!name || !role || !phone || !email){ showToast(LANG==='ar'?'أكمل الاسم والمسمى الوظيفي والهاتف والبريد الإلكتروني':'Complete name, job title, phone and email'); return; }
     if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){ showToast(LANG==='ar'?'صيغة البريد الإلكتروني غير صحيحة':'Invalid email format'); return; }
     if(phone && !/^[+]?[\d\s()-]{6,20}$/.test(phone)){ showToast(LANG==='ar'?'صيغة رقم الهاتف غير صحيحة':'Invalid phone number'); return; }
     // Keep the previous values so a failed write does not leave the UI lying.
-    const prev = {name:user.name, phone:user.phone, email:user.email};
-    user.name = name; user.phone = phone; user.email = email;
+    const prev = {name:user.name, phone:user.phone, email:user.email, role:user.role, profileCompleted:user.profileCompleted};
+    user.name = name; user.phone = phone; user.email = email; user.role = role; user.profileCompleted = true;
     saveUserRemote(user).then(()=>{
       document.querySelectorAll('.modal-overlay').forEach(m=>m.remove());
       render();
       showToast(t(STR.savedOk));
     }).catch(()=>{
-      user.name = prev.name; user.phone = prev.phone; user.email = prev.email;
+      user.name = prev.name; user.phone = prev.phone; user.email = prev.email; user.role = prev.role; user.profileCompleted = prev.profileCompleted;
       showToast(LANG==='ar'?'تعذر حفظ الملف الشخصي':'Could not save profile');
     });
     return;
@@ -258,7 +260,7 @@ document.addEventListener('click', e=>{
       const email = (document.getElementById('regEmail').value||'').trim();
       const pass = document.getElementById('regPass').value;
       const pass2 = document.getElementById('regPass2').value;
-      if(!name){ showToast(t(STR.requiredMissing)); return; }
+      if(!name || !phone || !email){ showToast(LANG==='ar'?'أكمل الاسم والهاتف والبريد الإلكتروني':'Complete name, phone and email'); return; }
       if(pass.length<4){ showToast(t(STR.passwordTooShort)); return; }
       if(pass!==pass2){ showToast(t(STR.passwordMismatch)); return; }
       const passwordHash = await sha256Hex(pass);
@@ -266,7 +268,7 @@ document.addEventListener('click', e=>{
         id:uid(), name, role, phone, email, passwordHash, 
         biometricCredId: state.regTempBiometric||null, 
         profilePic: state.regTempPic || null,
-        createdAt:new Date().toISOString() 
+        createdAt:new Date().toISOString(), profileCompleted:!!(name&&role&&phone&&email) 
       };
       await saveUserRemote(user);
       Store.set('qa_currentUserId', user.id);
@@ -367,6 +369,14 @@ document.addEventListener('click', e=>{
     saveUserRemote(updated);
     return;
   }
+  if(action==='send-followup-record'){
+    if(!hasRoleAtLeast('Engineer')) return;
+    const sectionId=el.getAttribute('data-section'), id=el.getAttribute('data-id'); const rec=getRecords(sectionId).find(r=>r.id===id); if(!rec || !rec.userId) return;
+    const target=getUsers().find(u=>u.id===rec.userId); if(!target) return;
+    const text=window.prompt(LANG==='ar'?'اكتب متابعة مرتبطة بهذا السجل':'Write a follow-up for this record',''); if(!text || !text.trim()) return;
+    const me=getCurrentUser(); qaCol('privateMessages/items').doc(uid()).set({targetUserId:target.id,targetName:target.name,fromUserId:me.id,fromName:me.name,recordId:id,sectionId,text:text.trim(),time:new Date().toISOString(),seen:false}).then(()=>showToast(LANG==='ar'?'تم إرسال المتابعة المرتبطة بالسجل':'Record follow-up sent')).catch(()=>showToast(LANG==='ar'?'تعذر إرسال المتابعة':'Could not send follow-up'));
+    return;
+  }
   if(action==='send-followup'){
     if(!hasRoleAtLeast('Engineer')) return;
     const targetId=el.getAttribute('data-id'), target=getUsers().find(u=>u.id===targetId); if(!target) return;
@@ -381,6 +391,7 @@ document.addEventListener('click', e=>{
     return;
   }
   if(action==='open-reset-modal'){
+    if(!canOpenSettings()){ showToast(LANG==='ar'?'ليس لديك صلاحية إعادة الضبط':'No reset permission'); return; }
     showResetPasswordModal(el.getAttribute('data-userid'), el.getAttribute('data-reqid'), el.getAttribute('data-name'));
     return;
   }

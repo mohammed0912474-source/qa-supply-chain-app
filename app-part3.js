@@ -785,11 +785,11 @@ function renderLockScreen(){
   <div style="text-align:center;margin-top:10px;"><button class="link-btn" data-action="auth-switch">${esc(t(STR.switchAccount))}</button></div>`;
 }
 
-function showAccountModal(){
+function showAccountModal(required=false){
   const user = getCurrentUser();
   const overlay = document.createElement('div'); overlay.className='modal-overlay';
   overlay.innerHTML = `<div class="modal-box">
-    <h3>👤 ${esc(t(STR.accessLog))}</h3>
+    <h3>👤 ${esc(t(STR.accessLog))}</h3>${required?`<div class="analytics-basis">${LANG==='ar'?'أكمل بيانات الملف الشخصي للمتابعة وتحديد صلاحياتك حسب المسمى الوظيفي.':'Complete your profile to continue and apply permissions from your job title.'}</div>`:''}
     <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
       <div style="width:80px; height:80px; border-radius:50%; background:#eee; overflow:hidden; border:2px solid var(--accent); margin-bottom:10px; display:flex; align-items:center; justify-content:center; font-size:32px;">
         ${user && user.profilePic ? `<img src="${esc(user.profilePic)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '👤'}
@@ -798,11 +798,12 @@ function showAccountModal(){
     </div>
     <div class="record-card"><div class="main">${esc(t(STR.loggedInAs))}: ${esc(user?user.name:'')}</div><div class="meta">${esc(user?(user.role||''):'')}</div><div class="meta">${LANG==='ar'?'رقم الهاتف':'Phone'}: ${esc(user?(user.phone||'—'):'—')}</div><div class="meta">${LANG==='ar'?'البريد الإلكتروني':'Email'}: ${esc(user?(user.email||'—'):'—')}</div></div>
     <div class="field" style="margin-top:12px;"><label>${LANG==='ar'?'اسم المستخدم':'Username'}</label><input type="text" id="profileName" value="${esc(user?user.name:'')}"></div>
+    <div class="field"><label>${LANG==='ar'?'المسمى الوظيفي':'Job title'}</label><select id="profileRole">${ROLE_OPTIONS.filter(r=>['Inspector','Officer'].includes(r.v)||r.v===user?.role).map(r=>`<option value="${esc(r.v)}" ${String(user?.role||'Inspector')===r.v?'selected':''}>${esc(t(r.l))}</option>`).join('')}</select><div class="hint">${LANG==='ar'?'تحدد الصلاحيات من هذا المسمى. الصلاحيات العليا تمنحها الإدارة.':'Permissions are derived from this title. Higher roles are granted by management.'}</div></div>
     <div class="field"><label>${LANG==='ar'?'رقم الهاتف':'Phone number'}</label><input type="tel" id="profilePhone" value="${esc(user?(user.phone||''):'')}" autocomplete="tel"></div>
     <div class="field"><label>${LANG==='ar'?'البريد الإلكتروني':'Email address'}</label><input type="email" id="profileEmail" value="${esc(user?(user.email||''):'')}" autocomplete="email"></div>
     <button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="auth-save-profile">${LANG==='ar'?'حفظ الملف الشخصي':'Save profile'}</button>
     ${PRIVATE_CHAT_CACHE.list.length?`<div class="record-card" style="margin-top:12px;"><b>${LANG==='ar'?'المتابعات الخاصة':'Private follow-ups'}</b>${PRIVATE_CHAT_CACHE.list.slice(0,5).map(m=>`<div class="meta" style="margin-top:6px;">${esc(m.text)}<br><small>${esc(m.fromName||'Engineer')} · ${esc(m.time||'')}</small></div>`).join('')}</div>`:''}<button class="btn btn-danger btn-block" style="margin-top:10px;" data-action="auth-logout">${esc(t(STR.logout))}</button>
-    <button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="close-modal">${esc(t(STR.cancel))}</button>
+    ${required?'':`<button class="btn btn-outline btn-block" style="margin-top:8px;" data-action="close-modal">${esc(t(STR.cancel))}</button>`}
   </div>`;
   document.body.appendChild(overlay);
 }

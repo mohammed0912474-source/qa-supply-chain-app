@@ -671,6 +671,8 @@ const CHAT_CACHE = { list: [] };
 const PRIVATE_CHAT_CACHE = { list: [] };
 const META_CACHE = { masterCode: null, adminPasswordHash: null, adminBiometricCredId: null };
 const ACCESS_LOG_CACHE = { list: [] };
+/* Client guardrail: keep live listeners bounded; long-term scale needs server-side aggregates/pagination. */
+const MAX_LIVE_RECORDS=5000;
 const RESET_REQUESTS_CACHE = { list: [] };
 const BUILTIN_EXTENSIONS_CACHE = { map: {} }; // { sectionId: [extraField, ...] }
 const _subscribedSections = new Set();
@@ -748,7 +750,7 @@ function subscribeSection(sectionId){
   if(_subscribedSections.has(sectionId)) return;
   _subscribedSections.add(sectionId);
   RECORDS_CACHE[sectionId] = RECORDS_CACHE[sectionId] || [];
-  qaCol('records_'+sectionId+'/items').onSnapshot(snap=>{
+  qaCol('records_'+sectionId+'/items').limit(MAX_LIVE_RECORDS).onSnapshot(snap=>{
     const isFirstLoad = RECORDS_CACHE[sectionId].length === 0;
     const arr = []; snap.forEach(doc=> arr.push(doc.data()));
     RECORDS_CACHE[sectionId] = arr;
@@ -957,6 +959,8 @@ function render(){
   document.documentElement.lang = LANG;
 
   if(state.auth){ app.innerHTML = renderAuthGate(); return; }
+  const currentProfile=getCurrentUser();
+  if(currentProfile && !currentProfile.profileCompleted && !document.querySelector('.modal-overlay')) setTimeout(()=>showAccountModal(true),0);
 
   let html = renderHeader() + '<div class="container">';
   if(state.view==='home') html += renderHome();

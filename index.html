@@ -368,8 +368,8 @@ html[dir="rtl"] .records-table tbody tr.row-working td:first-child{box-shadow:in
 .skip-link:focus{top:12px;outline:3px solid #7FE3DF;}
 #app:focus{outline:none;}
 h2.auth-title{margin-top:0;}
-.boot-shell{max-width:560px;margin:0 auto;padding:48px 20px;text-align:center;color:var(--text);}
-.boot-shell h1{font-size:22px;margin:0 0 8px;color:var(--navy);}
+.boot-shell{max-width:560px;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto;padding:48px 20px;text-align:center;color:var(--text);}
+.boot-mark{font-size:34px;width:64px;height:64px;border-radius:16px;background:#0A2540;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(10,37,64,.18)}.boot-progress{width:80px;height:3px;background:linear-gradient(90deg,#2E7BD6,#0EA5A0,#2E7BD6);background-size:200% 100%;animation:bootSlide 1.2s linear infinite;margin-top:16px;border-radius:99px}@keyframes bootSlide{to{background-position:200% 0}}.boot-shell h1{font-size:22px;margin:0 0 8px;color:var(--navy);}
 .boot-shell p{color:var(--muted);font-size:14px;line-height:1.8;margin:0 0 8px;}
 .site-footer{text-align:center;font-size:12px;color:var(--muted);padding:14px 12px 22px;}
 .site-footer a{color:inherit;text-decoration:underline;}
@@ -377,17 +377,25 @@ body:has(.tabbar) .site-footer{display:none;}
 @media print{.skip-link,.site-footer,.tabbar{display:none !important;}}
 
 .field-missing label{color:#b42318;font-weight:700}.field-missing input,.field-missing select,.field-missing textarea{border-color:#d92d20!important;box-shadow:0 0 0 2px rgba(217,45,32,.12);background:#fff8f7}.missing-hint{margin-inline-start:8px;color:#b42318;font-size:.78rem;font-weight:700}.field-missing::after{content:"";display:block;height:3px;width:34px;background:#d92d20;border-radius:3px;margin-top:4px}
+
+/* Responsive enterprise layout: charts, settings and records adapt without clipping. */
+.chart-card{min-width:0;overflow:hidden;}
+.chart-card>div{max-width:100%;overflow-x:auto;}
+.chart-card h4,.chart-card h3,.analytics-note,.hint{overflow-wrap:anywhere;}
+.records-table-wrap{max-width:100%;}
+.form-panel,.filter-panel,.card{min-width:0;}
+.record-actions,.record-status-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;}
+.record-status-actions{justify-content:flex-start;}
+@media (min-width:1100px){.container{max-width:1180px;padding-left:24px;padding-right:24px;}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr));}.analytics-section .kpi-grid{grid-template-columns:repeat(5,minmax(0,1fr));}}
+@media (max-width:900px){.analytics-section .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr));}.chart-card{padding:2px;}.chart-card>div{overflow-x:auto;}.chart-card>div>div{min-width:0;}}
+@media (max-width:600px){body{font-size:14px;}.container{padding:10px;padding-bottom:calc(92px + env(safe-area-inset-bottom));}.card{padding:13px;border-radius:9px;}.analytics-section .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.kpi-card{padding:11px 10px;}.kpi-card .kpi-val{font-size:19px;}.kpi-card .kpi-lbl{font-size:10.5px;}.chart-card h3,.chart-card h4{font-size:12.5px;line-height:1.5;}.chart-card>div[style*="height:150px"]{min-width:290px;}.records-panel{overflow:visible;}.records-table-wrap{border-radius:8px;}.record-actions .btn,.record-status-actions .btn{font-size:10.5px;padding:6px 8px;}.record-status-actions{align-items:flex-start;flex-direction:column;}.workspace-title{overflow-wrap:anywhere;}.workspace-description{overflow-wrap:anywhere;}.settings-grid{grid-template-columns:1fr!important;}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important;}}
 </style>
 </head>
 <body class="lang-ar">
 <a class="skip-link" href="#app">تخطَّ إلى المحتوى</a>
 <main id="app" tabindex="-1">
-  <div class="boot-shell">
-    <h1>منظومة الجودة – سلسلة الإمداد</h1>
-    <p>مساحة عمل داخلية لفرق الجودة واللوجستيات: تسجيل الشحنات والحاويات والبواليص، وفحص الشاحنات، ومعالجة المنتجات غير المطابقة (NC)، مع تحليلات تلقائية لنسب المعالجة والفاقد وتقارير شهرية قابلة للتصدير إلى Excel وPDF.</p>
-    <p>QA Supply Chain — an internal quality &amp; logistics workspace for shipments, truck inspections, product processing, analytics and monthly reports. Access is by organization invitation.</p>
-    <p>جاري تحميل التطبيق…</p>
-  </div>
+  <div class="boot-shell" aria-label="Loading"><div class="boot-mark">🛡️</div><div class="boot-progress" aria-hidden="true"></div></div>
 </main>
 <footer class="site-footer"><a href="privacy.html#privacy">الخصوصية</a> · <a href="privacy.html#terms">شروط الاستخدام</a> · <a href="privacy.html#accessibility">إمكانية الوصول</a> · © 2026 QA Supply Chain</footer>
 
