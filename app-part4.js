@@ -164,7 +164,7 @@ document.addEventListener('click', e=>{
   if(action==='auth-pick-user'){ state.auth = {screen:'lock', targetUserId: el.getAttribute('data-id')}; render(); return; }
   if(action==='auth-find-account'){
     const name = (document.getElementById('findAccountName').value||'').trim();
-    if(!name || !role || !phone || !email){ showToast(LANG==='ar'?'أكمل الاسم والمسمى الوظيفي والهاتف والبريد الإلكتروني':'Complete name, job title, phone and email'); return; }
+    if(!name){ showToast(t(STR.requiredMissing)); return; }
     const found = getUsers().find(u=> (u.name||'').trim().toLowerCase() === name.toLowerCase());
     if(!found){ showToast(t(STR.accountNotFound)); return; }
     state.auth = {screen:'lock', targetUserId: found.id};
@@ -361,7 +361,7 @@ document.addEventListener('click', e=>{
   }
 
   if(action==='toggle-user-admin'){
-    if(!hasRoleAtLeast('Manager')) return;
+    if(!isAdmin()) return;
     const id = el.getAttribute('data-id');
     const u = getUsers().find(x=>x.id===id);
     if(!u) return;

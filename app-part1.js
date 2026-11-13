@@ -270,9 +270,9 @@ function readFileAsDataUrl(file){
 
 async function uploadProfilePicture(file){
   if(!file || !String(file.type||'').startsWith('image/')) throw new Error('Unsupported image type');
-  if(file.size > 12 * 1024 * 1024) throw new Error('Image is too large');
+  // لا يوجد حد 12MB على الملف الأصلي؛ يتم ضغط الصورة تلقائياً قبل الرفع.
   const original = await readFileAsDataUrl(file);
-  const optimized = await compressImageDataUrl(original, 768, 0.84);
+  const optimized = await compressImageDataUrl(original, 1280, 0.82);
   if(!optimized) throw new Error('Image compression failed');
   try{
     const url = await uploadToImgBB(optimized);
@@ -466,7 +466,7 @@ const STR = {
   imageSaveFailed:{ar:'تعذر حفظ الصورة، جرب تقفل كل نوافذ/تابات التطبيق وافتحه من جديد', en:'Could not save the image — try closing all tabs/windows of the app and reopening it'},
   addingPhotos:{ar:'جاري إضافة الصور...', en:'Adding photos...'},
   photosAdded:{ar:'تمت إضافة الصور ✅', en:'Photos added ✅'},
-  profilePhotoInvalid:{ar:'اختر صورة صالحة بحجم لا يتجاوز 12 ميجابايت', en:'Choose a valid image up to 12 MB'},
+  profilePhotoInvalid:{ar:'تعذر معالجة الصورة. اختر صورة صالحة وسيتم ضغطها تلقائياً قبل الرفع.', en:'The image could not be processed. Choose a valid image; it will be optimized automatically before upload.'},
   notificationEnabled:{ar:'تم تفعيل إشعارات التقارير على هذا الجهاز', en:'Report notifications are enabled on this device'},
   notificationBlocked:{ar:'لم يتم تفعيل الإشعارات. يمكنك السماح بها من إعدادات المتصفح.', en:'Notifications are not enabled. Allow them in browser settings.'},
   reportReadyTitle:{ar:'تم حفظ التقرير', en:'Report saved'},
@@ -547,7 +547,8 @@ const ROLE_OPTIONS = [
   {v:'Officer', l:{ar:'مسؤول', en:'Officer'}},
   {v:'Engineer', l:{ar:'مهندس', en:'Engineer'}},
   {v:'Supervisor', l:{ar:'مشرف', en:'Supervisor'}},
-  {v:'Manager', l:{ar:'مدير', en:'Manager'}}
+  {v:'Manager', l:{ar:'مدير', en:'Manager'}},
+  {v:'Main Admin', l:{ar:'المسؤول الرئيسي', en:'Main Admin'}}
 ];
 
 /* ===================== Field helpers ===================== */
