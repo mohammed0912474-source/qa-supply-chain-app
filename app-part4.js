@@ -187,6 +187,15 @@ document.addEventListener('click', e=>{
     if(!name || !role || !phone || !email){ showToast(LANG==='ar'?'أكمل الاسم والمسمى الوظيفي والهاتف والبريد الإلكتروني':'Complete name, job title, phone and email'); return; }
     if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){ showToast(LANG==='ar'?'صيغة البريد الإلكتروني غير صحيحة':'Invalid email format'); return; }
     if(phone && !/^[+]?[\d\s()-]{6,20}$/.test(phone)){ showToast(LANG==='ar'?'صيغة رقم الهاتف غير صحيحة':'Invalid phone number'); return; }
+    // Main Admin is stored in qa_app/meta, not users/items. Save it through the correct path.
+    if(user.isAdmin){
+      const adminProfile={name,phone,email,profileCompleted:true,profilePic:user.profilePic||''};
+      const adminWrite = user.id==='__admin__' ? saveMetaRemote({adminProfile}) : Promise.all([saveMetaRemote({adminProfile}), saveUserRemote(Object.assign({},user,{name,phone,email,profileCompleted:true,role:'Main Admin'}))]);
+      adminWrite.then(()=>{
+        document.querySelectorAll('.modal-overlay').forEach(m=>m.remove()); render(); showToast(t(STR.savedOk));
+      }).catch(err=>{ console.warn('Main Admin profile save failed',err); showToast(LANG==='ar'?'تعذر حفظ ملف المسؤول الرئيسي':'Could not save Main Admin profile'); });
+      return;
+    }
     // Keep the previous values so a failed write does not leave the UI lying.
     const prev = {name:user.name, phone:user.phone, email:user.email, role:user.role, profileCompleted:user.profileCompleted};
     user.name = name; user.phone = phone; user.email = email; user.role = role; user.profileCompleted = true;
@@ -208,7 +217,8 @@ document.addEventListener('click', e=>{
       const user = getCurrentUser();
       if(user){
         user.profilePic = url;
-        return saveUserRemote(user).then(()=>{
+        const adminProfile={name:user.name,phone:user.phone||'',email:user.email||'',profileCompleted:!!user.profileCompleted,profilePic:url}; const persist = user.isAdmin ? (user.id==='__admin__' ? saveMetaRemote({adminProfile}) : Promise.all([saveMetaRemote({adminProfile}), saveUserRemote(Object.assign({},user,{profilePic:url}))])) : saveUserRemote(user);
+        return persist.then(()=>{
           // Rebuild the account modal so the new picture is actually visible;
           // re-rendering alone left the open modal showing the old image.
           const wasOpen = !!document.querySelector('.modal-overlay');

@@ -670,7 +670,7 @@ const RECORDS_CACHE = {};        // { sectionId: [records...] }
 const USERS_CACHE = { list: [] };
 const CHAT_CACHE = { list: [] };
 const PRIVATE_CHAT_CACHE = { list: [] };
-const META_CACHE = { masterCode: null, adminPasswordHash: null, adminBiometricCredId: null };
+const META_CACHE = { masterCode: null, adminPasswordHash: null, adminBiometricCredId: null, adminProfile: {} };
 const ACCESS_LOG_CACHE = { list: [] };
 /* Client guardrail: keep live listeners bounded; long-term scale needs server-side aggregates/pagination. */
 const MAX_LIVE_RECORDS=5000;
@@ -713,6 +713,7 @@ function subscribeMeta(){
     META_CACHE.masterCode = d.masterCode || null;
     META_CACHE.adminPasswordHash = d.adminPasswordHash || null;
     META_CACHE.adminBiometricCredId = d.adminBiometricCredId || null;
+    META_CACHE.adminProfile = d.adminProfile || {};
     if(!_metaReady){ _metaReady = true; tryBootApp(); }
     if(_appBooted){ if(state.auth) scheduleRender(); else if(state.view==='builder') scheduleRender(); }
   }, err=> console.warn('meta sync error', err));
@@ -917,7 +918,7 @@ function getMasterCode(){ return META_CACHE.masterCode || DEFAULT_MASTER_CODE; }
 function saveMetaRemote(partial){ return db.collection('qa_app').doc('meta').set(partial, {merge:true}); }
 function getCurrentUser(){
   const id = Store.get('qa_currentUserId', null);
-  if(id==='__admin__') return {id:'__admin__', name: t(STR.roleAdmin), role:t(STR.roleAdmin), isAdmin:true, biometricCredId: META_CACHE.adminBiometricCredId};
+  if(id==='__admin__') return {id:'__admin__', name: META_CACHE.adminProfile.name || t(STR.roleAdmin), role:'Main Admin', isAdmin:true, biometricCredId: META_CACHE.adminBiometricCredId, phone:META_CACHE.adminProfile.phone||'', email:META_CACHE.adminProfile.email||'', profilePic:META_CACHE.adminProfile.profilePic||'', profileCompleted:!!META_CACHE.adminProfile.profileCompleted};
   if(!id) return null;
   return getUsers().find(u=>u.id===id) || null;
 }
