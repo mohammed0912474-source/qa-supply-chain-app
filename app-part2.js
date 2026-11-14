@@ -411,8 +411,8 @@ function renderWorkStatusControl(sectionId, record){
   const status = workStatusOf(record);
   const next = status === 'completed' ? 'working' : 'completed';
   const title = LANG === 'ar' ? 'اضغط لتبديل حالة العملية يدويًا' : 'Tap to switch the operation status manually';
-  const submit = requiresSupervisorApproval(record) && !record.approvedBy && isSupervisor() ? `<button type="button" class="btn btn-primary btn-sm" data-action="submit-record" data-section="${esc(sectionId)}" data-id="${esc(record.id)}">${LANG==='ar'?'Submit واعتماد':'Submit & approve'}</button>` : (requiresSupervisorApproval(record) && !record.approvedBy ? `<span class="status-badge pending">${LANG==='ar'?'بانتظار اعتماد Supervisor':'Awaiting Supervisor approval'}</span>` : '');
-  return `<div class="record-status-actions"><button type="button" class="work-toggle ${status}" data-action="toggle-work-status" data-section="${esc(sectionId)}" data-id="${esc(record.id)}" data-next="${next}" title="${esc(title)}" aria-pressed="${status==='completed'}"><span class="work-dot"></span><span class="work-text">${esc(workStatusLabel(status))}</span></button>${submit}</div>`;
+  const submit = requiresSupervisorApproval(record) && !record.approvedBy && isSupervisor() ? `<button type="button" class="btn btn-primary btn-sm" data-action="submit-record" data-section="${esc(sectionId)}" data-id="${esc(record.id)}">${LANG==='ar'?'اعتماد':'Submit'}</button>` : (requiresSupervisorApproval(record) && !record.approvedBy ? `<span class="status-badge pending">${LANG==='ar'?'بانتظار اعتماد Supervisor':'Awaiting Supervisor approval'}</span>` : '');
+  return `<div class="record-status-actions"><button type="button" class="work-toggle ${status} ${record.approvedBy?'approved':''}" data-action="toggle-work-status" data-section="${esc(sectionId)}" data-id="${esc(record.id)}" data-next="${next}" title="${esc(title)}" aria-pressed="${status==='completed'}"><span class="work-dot"></span><span class="work-text">${esc(workStatusLabel(status))}</span></button>${submit}</div>`;
 }
 function renderRecordActions(sectionId, recordId){
   const rec=getRecords(sectionId).find(r=>r.id===recordId) || {};

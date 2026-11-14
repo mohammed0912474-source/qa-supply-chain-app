@@ -544,7 +544,6 @@ const STR = {
 
 const ROLE_OPTIONS = [
   {v:'Inspector', l:{ar:'مفتش', en:'Inspector'}},
-  {v:'Officer', l:{ar:'مسؤول', en:'Officer'}},
   {v:'Engineer', l:{ar:'مهندس', en:'Engineer'}},
   {v:'Supervisor', l:{ar:'مشرف', en:'Supervisor'}},
   {v:'Manager', l:{ar:'مدير', en:'Manager'}},
@@ -634,7 +633,7 @@ const BUILTIN_SECTIONS = [
       {key:'cleaning', type:'select', label:{ar:'النظافة', en:'Cleaning'}, options:[SEL('good','جيدة','Good'),SEL('bad','غير جيدة','Not Good')]},
       {key:'tarpFloor', type:'select', label:{ar:'مشمع سطح الشاحنة', en:'Truck Floor Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
       {key:'tarpCover', type:'select', label:{ar:'مشمع غطاء الشاحنة', en:'Truck Cover Tarp'}, options:[SEL('avail','متوفر','Available'),SEL('notavail','غير متوفر','Not Available')]},
-      {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'}, required:true, options:[SEL('cross_loading','Cross Loading','Cross Loading'),SEL('off_loading','Off Loading','Off Loading')]},
+      {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'}, required:true, options:[SEL('cross_loading','Cross Loading','Cross Loading'),SEL('off_loading','Off Loading','Off Loading'),SEL('loading','Loading','Loading')]},
       {key:'inspectionResult', type:'select', label:{ar:'نتيجة الفحص', en:'Inspection Result'}, options:[SEL('accepted','مقبولة','Accepted'),SEL('rejected','مرفوضة','Rejected')]},
       {key:'remark', type:'textarea', label:{ar:'ملاحظات', en:'Remark'}},
       {key:'images', type:'image', label:{ar:'صور', en:'Images'}}
@@ -948,6 +947,8 @@ function pushAccessLog(entry){ qaCol('accessLog/items').doc(uid()).set(entry).ca
 function initAuthState(){
   const cur = getCurrentUser();
   if(!cur){ state.auth = {screen:'welcome'}; return; }
+  // Main Admin is owner-bound in this legacy PWA and must not be downgraded to a normal user lock screen.
+  if(cur.id==='__admin__' || cur.isAdmin){ state.auth = null; sessionStorage.setItem('qa_unlocked','1'); return; }
   const unlocked = sessionStorage.getItem('qa_unlocked')==='1';
   state.auth = unlocked ? null : {screen:'lock', targetUserId: cur.id};
 }
@@ -962,7 +963,7 @@ function render(){
 
   if(state.auth){ app.innerHTML = renderAuthGate(); return; }
   const currentProfile=getCurrentUser();
-  if(currentProfile && !currentProfile.profileCompleted && !document.querySelector('.modal-overlay')) setTimeout(()=>showAccountModal(true),0);
+  if(currentProfile && !currentProfile.isAdmin && !currentProfile.role && !document.querySelector('.modal-overlay')) setTimeout(()=>showAccountModal(true),0);
 
   let html = renderHeader() + '<div class="container">';
   if(state.view==='home') html += renderHome();

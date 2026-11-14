@@ -160,8 +160,8 @@ document.addEventListener('click', e=>{
     if(screen==='welcome') state.formTemp = {};
     state.auth = {screen}; render(); return;
   }
-  if(action==='auth-goto-admin'){ state.auth = {screen: isAdminSetup() ? 'adminLogin' : 'adminSetup'}; render(); return; }
-  if(action==='auth-pick-user'){ state.auth = {screen:'lock', targetUserId: el.getAttribute('data-id')}; render(); return; }
+  if(action==='auth-goto-admin'){ if(!isAdminSetup()){ Store.set('qa_currentUserId','__admin__'); sessionStorage.setItem('qa_unlocked','1'); state.auth=null; state.view='home'; render(); } else { state.auth = {screen:'adminLogin'}; render(); } return; }
+  if(action==='auth-pick-user'){ const picked=getUsers().find(u=>u.id===el.getAttribute('data-id')); if(picked && picked.isAdmin){ Store.set('qa_currentUserId',picked.id); sessionStorage.setItem('qa_unlocked','1'); state.auth=null; state.view='home'; render(); } else { state.auth = {screen:'lock', targetUserId: el.getAttribute('data-id')}; render(); } return; }
   if(action==='auth-find-account'){
     const name = (document.getElementById('findAccountName').value||'').trim();
     if(!name){ showToast(t(STR.requiredMissing)); return; }
