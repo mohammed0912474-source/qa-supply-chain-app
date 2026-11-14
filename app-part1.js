@@ -577,7 +577,6 @@ const BUILTIN_SECTIONS = [
       {key:'countryOfOrigin', type:'text', label:{ar:'بلد المنشأ', en:'Country of Origin'}, required:true},
       {key:'productDesc', type:'text', label:{ar:'المنتج ووصفه', en:'Product & Description'}, required:true},
       {key:'unit', type:'unit', label:{ar:'الوحدة', en:'Unit'}},
-      {key:'prodExpDates', type:'multiDate', label:{ar:'تواريخ الإنتاج والانتهاء', en:'Production & Expiry Dates'}},
       {key:'operationType', type:'select', label:{ar:'نوع العملية', en:'Operation Type'}, required:true,
         options:[SEL('cross','Cross Loading','Cross Loading'), SEL('off','Off Loading','Off Loading')]},
       {key:'containerDetails', type:'group', label:{ar:'تفاصيل الحاويات', en:'Container Details'},
@@ -618,14 +617,15 @@ const BUILTIN_SECTIONS = [
       {key:'truckNo', type:'text', label:{ar:'رقم الشاحنة', en:'Truck No'}, required:true},
       {key:'destination', type:'text', label:{ar:'الوجهة', en:'Destination'}, required:true},
       {key:'transporter', type:'text', label:{ar:'الناقل', en:'Transporter'}, required:true},
-      {key:'prodExpDates', type:'multiDate', label:{ar:'تواريخ الإنتاج والانتهاء', en:'Production & Expiry Dates'}},
       {key:'driverName', type:'text', label:{ar:'اسم السائق', en:'Driver Name'}},
       {key:'driverPhone', type:'text', label:{ar:'هاتف السائق', en:'Driver Phone'}},
       {key:'products', type:'group', label:{ar:'المنتجات المحمّلة (أضف بند لكل منتج)', en:'Products Loaded (add an item per product)'},
         fields:[
           {key:'product', type:'text', label:{ar:'المنتج', en:'Product'}},
           {key:'qty', type:'text', label:{ar:'الكمية (يدوياً)', en:'Qty (Manual)'}},
-          {key:'unit', type:'unit', label:{ar:'الوحدة (اكتبها يدوياً لو مختلفة)', en:'Unit (type manually if different)'}}
+          {key:'unit', type:'unit', label:{ar:'الوحدة (اكتبها يدوياً لو مختلفة)', en:'Unit (type manually if different)'}},
+          {key:'productionDate', type:'date', label:{ar:'تاريخ الإنتاج', en:'Production Date'}},
+          {key:'expiryDate', type:'date', label:{ar:'تاريخ الانتهاء', en:'Expiry Date'}}
         ]},
       {key:'orderType', type:'select', label:{ar:'نوع الطلب', en:'Order Type'}, required:true,
         options:[SEL('sales','مبيعات','Sales'), SEL('replenishment','تغذية مخزون','Replenishment'), SEL('consignment','بضاعة أمانة','Consignment'), SEL('cash','عميل نقدي','Cash Customer'), SEL('staffsales','منفذ بيع الموظفين','Staff Sales Point'), SEL('other','أخرى','Other')]},
@@ -719,7 +719,23 @@ function subscribeMeta(){
 }
 function subscribeUsers(){
   qaCol('users/items').onSnapshot(snap=>{
-    const arr = []; snap.forEach(doc=> arr.push({id:doc.id, ...doc.data()}));
+    const arr = []; snap.forEach(doc=>{
+      const raw={id:doc.id, ...doc.data()};
+      // There is exactly one Main Admin: the private device-bound __admin__ account (Masry).
+      // Legacy users flagged as admin are deliberately demoted and forced to choose a job title.
+      if(raw.isAdmin){
+        const rawName=String(raw.name||'').trim().toLowerCase();
+        // Migrate the owner's old admin user to the private __admin__ identity first.
+        if(rawName==='masry' && Store.get('qa_currentUserId',null)===raw.id){
+          Store.set('qa_currentUserId','__admin__');
+          sessionStorage.setItem('qa_unlocked','1');
+          saveMetaRemote({adminProfile:{name:'Masry',phone:raw.phone||'',email:raw.email||'',profilePic:raw.profilePic||'',profileCompleted:true}}).catch(err=>console.warn('owner profile migration failed',err));
+        }
+        const demoted=Object.assign({},raw,{isAdmin:false,role:'',profileCompleted:false});
+        arr.push(demoted);
+        qaCol('users/items').doc(raw.id).set({isAdmin:false,role:'',profileCompleted:false},{merge:true}).catch(err=>console.warn('legacy admin demotion failed',err));
+      } else arr.push(raw);
+    });
     USERS_CACHE.list = arr;
     if(!_usersReady){ _usersReady = true; tryBootApp(); }
     scheduleRender();
@@ -917,13 +933,13 @@ function getMasterCode(){ return META_CACHE.masterCode || DEFAULT_MASTER_CODE; }
 function saveMetaRemote(partial){ return db.collection('qa_app').doc('meta').set(partial, {merge:true}); }
 function getCurrentUser(){
   const id = Store.get('qa_currentUserId', null);
-  if(id==='__admin__') return {id:'__admin__', name: META_CACHE.adminProfile.name || t(STR.roleAdmin), role:'Main Admin', isAdmin:true, biometricCredId: META_CACHE.adminBiometricCredId, phone:META_CACHE.adminProfile.phone||'', email:META_CACHE.adminProfile.email||'', profilePic:META_CACHE.adminProfile.profilePic||'', profileCompleted:!!META_CACHE.adminProfile.profileCompleted};
+  if(id==='__admin__') return {id:'__admin__', name:'Masry', role:'Main Admin', isAdmin:true, biometricCredId: META_CACHE.adminBiometricCredId, phone:META_CACHE.adminProfile.phone||'', email:META_CACHE.adminProfile.email||'', profilePic:META_CACHE.adminProfile.profilePic||'', profileCompleted:!!META_CACHE.adminProfile.profileCompleted};
   if(!id) return null;
   return getUsers().find(u=>u.id===id) || null;
 }
 function roleOf(user=getCurrentUser()){
   if(!user) return '';
-  if(user.isAdmin || user.id==='__admin__') return 'Main Admin';
+  if(user.id==='__admin__') return 'Main Admin';
   const raw=String(user.role||'').toLowerCase();
   if(raw.includes('manager') || raw.includes('مدير')) return 'Manager';
   if(raw.includes('supervisor') || raw.includes('مشرف')) return 'Supervisor';
@@ -940,7 +956,7 @@ function canManageRecords(){ return hasRoleAtLeast('Engineer'); }
 function isSupervisor(){ return roleOf()==='Supervisor' || roleOf()==='Manager' || roleOf()==='Main Admin'; }
 function requiresSupervisorApproval(record){ const d=recordDateISO(record); return !!d && d >= '2026-11-01'; }
 function isApproved(record){ return !requiresSupervisorApproval(record) || record.approvedBy; }
-function isAdmin(){ const u = getCurrentUser(); return !!(u && u.isAdmin); }
+function isAdmin(){ const u = getCurrentUser(); return !!(u && u.id==='__admin__'); }
 function adminLoginCount(){ return ACCESS_LOG_CACHE.list.filter(e=> e.type==='admin-login' || e.type==='admin-setup').length; }
 function pushAccessLog(entry){ qaCol('accessLog/items').doc(uid()).set(entry).catch(err=>console.warn('log error',err)); }
 
@@ -948,7 +964,7 @@ function initAuthState(){
   const cur = getCurrentUser();
   if(!cur){ state.auth = {screen:'welcome'}; return; }
   // Main Admin is owner-bound in this legacy PWA and must not be downgraded to a normal user lock screen.
-  if(cur.id==='__admin__' || cur.isAdmin){ state.auth = null; sessionStorage.setItem('qa_unlocked','1'); return; }
+  if(cur.id==='__admin__'){ state.auth = null; sessionStorage.setItem('qa_unlocked','1'); return; }
   const unlocked = sessionStorage.getItem('qa_unlocked')==='1';
   state.auth = unlocked ? null : {screen:'lock', targetUserId: cur.id};
 }
